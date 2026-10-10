@@ -5,6 +5,7 @@ from .html_loader import HTML
 from .directory_loader import Directory
 from .webpage_loader import WebPage
 from .pdf_loader import PDF
+from .microsoftfile_loader import MicrosoftFile
 
 class LoaderFactory:
     @staticmethod
@@ -17,6 +18,7 @@ class LoaderFactory:
             "Directory": Directory,
             "WebPage": WebPage,
             "PDF": PDF,
+            "MicrosoftFile": MicrosoftFile,
         }
         if loader_type in loaders:
             # Pass **kwargs to the loader's load method

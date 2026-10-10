@@ -4,7 +4,7 @@ import json
 from typing import List, Dict, Callable, Any, Optional
 import torch
 
-def load_model(model_name: str, hf_token: str, quantized: bool = True):
+def load_model(model_name: str, hf_token: str, quantized: bool = True, trust_remote_code: bool = False):
     bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,              # Load model in 4-bit precision
     bnb_4bit_quant_type="nf4",      # Normalize float 4 quantization
@@ -23,7 +23,7 @@ def load_model(model_name: str, hf_token: str, quantized: bool = True):
         model_name,
         quantization_config=bnb_config,
         device_map="auto",          # Automatically choose best device
-        trust_remote_code=True,     # Required for some models
+        trust_remote_code=trust_remote_code,  # Runs code from the model repo; only enable for repos you trust
         token=hf_token
     )
     
