@@ -1,0 +1,34 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest dependency versions mantiq supports, without the optional loaders.
+          - python: "3.10"
+            torch: torch==2.5.*
+            resolution: lowest-direct
+            extras: test
+          - python: "3.12"
+            torch: torch
+            resolution: highest
+            extras: loaders,test
+    name: python ${{ matrix.python }} (${{ matrix.resolution }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          activate-environment: true
+      # The CPU build of torch first, so the next step doesn't pull the CUDA one from PyPI.
+      - run: uv pip install "${{ matrix.torch }}" --index-url https://download.pytorch.org/whl/cpu
+      - run: uv pip install --resolution ${{ matrix.resolution }} -e ".[${{ matrix.extras }}]"
+      - run: pytest

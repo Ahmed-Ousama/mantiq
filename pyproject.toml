@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mantiq"
+version = "0.2.0"
+description = "Cache-Augmented Generation (CAG) for HuggingFace models: encode your knowledge into a KV cache once, then answer questions without retrieval."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Tactful AI team", email = "ahmed.osama@tactful.ai" }]
+requires-python = ">=3.10"
+keywords = ["cag", "cache-augmented-generation", "kv-cache", "llm", "rag", "transformers", "huggingface"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.5",
+    "transformers>=4.56",
+    "accelerate>=1.0",
+    # 4-bit quantization needs a CUDA GPU, which macOS doesn't have.
+    "bitsandbytes>=0.45; platform_system != 'Darwin'",
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+loaders = [
+    "langchain-community>=0.3",
+    "jq",
+    "pypdf",
+    "beautifulsoup4",
+    "unstructured[md]",
+]
+azure = ["mantiq[loaders]", "azure-ai-documentintelligence"]
+test = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/tactful-ai/mantiq"
+Repository = "https://github.com/tactful-ai/mantiq"
+Issues = "https://github.com/tactful-ai/mantiq/issues"
+Changelog = "https://github.com/tactful-ai/mantiq/blob/main/CHANGELOG.md"
+Paper = "https://arxiv.org/abs/2412.15605"
+
+[tool.setuptools.packages.find]
+include = ["mantiq*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
