@@ -2,9 +2,9 @@
 
 **Cache-Augmented Generation (CAG) for HuggingFace models.** mantiq reads your knowledge into the model's KV cache once, then answers any number of questions from it, with no retrieval pipeline and without re-reading the knowledge for every question.
 
-[![tests](https://github.com/tactful-ai/mantiq/actions/workflows/tests.yml/badge.svg)](https://github.com/tactful-ai/mantiq/actions/workflows/tests.yml)
+[![tests](https://github.com/Ahmed-Ousama/mantiq/actions/workflows/tests.yml/badge.svg)](https://github.com/Ahmed-Ousama/mantiq/actions/workflows/tests.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
-[![license](https://img.shields.io/badge/license-MIT-green)](https://github.com/tactful-ai/mantiq/blob/main/LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-green)](https://github.com/Ahmed-Ousama/mantiq/blob/main/LICENSE)
 
 ```python
 from mantiq import NaiveCAG
@@ -62,7 +62,7 @@ pip install mantiq
 pip install "mantiq[loaders]"
 ```
 
-Or the latest version from GitHub: `pip install git+https://github.com/tactful-ai/mantiq.git`
+Or the latest version from GitHub: `pip install git+https://github.com/Ahmed-Ousama/mantiq.git`
 
 mantiq runs on CPU out of the box. With a CUDA GPU, models are loaded in 4-bit automatically.
 
@@ -260,7 +260,7 @@ cag = NaiveCAG(
 - Built-in citation heads for more models.
 - Catching wrong answers that the knowledge does state; `supported` only catches made-up ones.
 
-Have an idea or a use case? [Open an issue](https://github.com/tactful-ai/mantiq/issues).
+Have an idea or a use case? [Open an issue](https://github.com/Ahmed-Ousama/mantiq/issues).
 
 ## Background
 
@@ -292,4 +292,4 @@ If you use mantiq in your research, please cite the paper it builds on:
 
 ## License
 
-MIT. See [LICENSE](https://github.com/tactful-ai/mantiq/blob/main/LICENSE).
+MIT. See [LICENSE](https://github.com/Ahmed-Ousama/mantiq/blob/main/LICENSE).

@@ -44,10 +44,10 @@ azure = ["mantiq[loaders]", "azure-ai-documentintelligence"]
 test = ["pytest>=8"]
 
 [project.urls]
-Homepage = "https://github.com/tactful-ai/mantiq"
-Repository = "https://github.com/tactful-ai/mantiq"
-Issues = "https://github.com/tactful-ai/mantiq/issues"
-Changelog = "https://github.com/tactful-ai/mantiq/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Ahmed-Ousama/mantiq"
+Repository = "https://github.com/Ahmed-Ousama/mantiq"
+Issues = "https://github.com/Ahmed-Ousama/mantiq/issues"
+Changelog = "https://github.com/Ahmed-Ousama/mantiq/blob/main/CHANGELOG.md"
 Paper = "https://arxiv.org/abs/2412.15605"
 
 [tool.setuptools.packages.find]
