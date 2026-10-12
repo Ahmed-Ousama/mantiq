@@ -271,7 +271,7 @@ Have an idea or a use case? [Open an issue](https://github.com/Ahmed-Ousama/mant
 
 ## Background
 
-mantiq is developed by the [tactful](https://tactful.ai/) team as part of its work on conversational AI. It builds on the paper [Don't Do RAG: When Cache-Augmented Generation is All You Need for Knowledge Tasks](https://arxiv.org/abs/2412.15605) and its [original implementation](https://github.com/hhhuang/CAG).
+mantiq was started at [Tactful](https://tactful.ai/) as part of its work on conversational AI, and is developed by Ahmed Ousama. Thanks to Mohamed Fouad, Tactful's CTO at the time, for supporting the project. It builds on the paper [Don't Do RAG: When Cache-Augmented Generation is All You Need for Knowledge Tasks](https://arxiv.org/abs/2412.15605) and its [original implementation](https://github.com/hhhuang/CAG).
 
 ## Contributing
 

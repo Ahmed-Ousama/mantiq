@@ -9,7 +9,7 @@ description = "Cache-Augmented Generation (CAG) for HuggingFace models: encode y
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Tactful AI team", email = "ahmed.osama@tactful.ai" }]
+authors = [{ name = "Ahmed Ousama", email = "contact.ahmedousama@gmail.com" }]
 requires-python = ">=3.10"
 keywords = ["cag", "cache-augmented-generation", "kv-cache", "llm", "rag", "transformers", "huggingface"]
 classifiers = [

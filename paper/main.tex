@@ -413,6 +413,10 @@ Table~\ref{tab:signals} compares other signals on Qwen3-4B. Asking whether the c
 
 A cached knowledge base can say where its answers come from. Hiding documents through the attention mask gives a leave-one-out signal at the cost of a few short passes, and a few dozen self-generated questions turn that signal into a handful of attention heads that rank documents in one pass. These citation heads are more accurate than the signal that selected them, on par with a trained attribution method for the top citation and better at finding every supporting paragraph, and they transfer across datasets and languages. Detecting wrong answers that the knowledge does state remains open. We release the method and the heads for 11 models in mantiq.
 
+\section*{Acknowledgments}
+
+mantiq was started at Tactful. The author thanks Mohamed Fouad, Tactful's CTO at the time, for supporting the project.
+
 \bibliographystyle{plainnat}
 \bibliography{references}
 
