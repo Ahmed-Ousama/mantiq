@@ -176,6 +176,8 @@ Compared with [AT2](https://arxiv.org/abs/2504.13752), which learns a weight for
 
 The top citations are within each other's 95% confidence intervals (about ±5 points), so they are on par; mantiq's heads find both supporting paragraphs more often and answer about 4 times faster, after calibrating on 20 questions the model wrote itself. AT2's Llama estimator was trained on the full-precision model and ran here on the 4-bit one. Reproduce with `examples/compare_with_at2.py`.
 
+On harder questions from [MuSiQue](https://github.com/StonyBrookNLP/musique) (20 paragraphs, 2 to 4 of them supporting the answer), the built-in heads, unchanged, rank 58% and 55% of the supporting paragraphs first for Llama-3.1-8B and Phi-4-mini (among as many top citations as there are supporting paragraphs), against 52% and 48% for AT2, and cite 5 to 6 times faster (150 questions per model). Reproduce with `examples/evaluate_musique.py`.
+
 `supported` catches answers that don't come from the knowledge. After the answer, the model is asked whether the knowledge states it, and `supported` is its probability of yes. To measure it, each HotpotQA question was answered once over its own paragraphs and once over another question's paragraphs, where the answer can't be found:
 
 | Model | made-up answers (from the wrong paragraphs) | wrong answers (from the right paragraphs) |
