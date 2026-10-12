@@ -126,7 +126,7 @@ cited.supported  # from 0 to 1: low when the answer doesn't come from the knowle
 
 `cite()` works on the cache itself, without re-reading the knowledge:
 
-- **With citation heads**, built in for 10 models (Qwen3 0.6B to 8B, Llama 3.2 1B and 3B, Llama 3.1 8B, Gemma 3 1B and 4B, Mistral 7B v0.3) or found for any model with `calibrate_citations()`: a few attention heads in a model look at the document an answer comes from, and `cite()` ranks the documents by where they look, in one pass however many documents there are.
+- **With citation heads**, built in for 11 models (Qwen3 0.6B to 8B, Llama 3.2 1B and 3B, Llama 3.1 8B, Gemma 3 1B and 4B, Mistral 7B v0.3, Phi-4-mini) or found for any model with `calibrate_citations()`: a few attention heads in a model look at the document an answer comes from, and `cite()` ranks the documents by where they look, in one pass however many documents there are.
 - **Without them**, it hides each document from the cache in turn and ranks the documents by how much less likely the answer becomes. With more than `max_candidates` documents (16 by default), only the ones the answer attends to most are hidden.
 
 A citation's `score` is how much less likely the answer becomes with that document hidden, in nats per token. With `prepare_kvcache`, each Q&A entry is a document, cited by its index.
@@ -154,8 +154,22 @@ How well it works, without → with citation heads. [HotpotQA](https://hotpotqa.
 | Llama-3.2-1B-Instruct | 89% → 89% | 29% → **41%** | 90% → **97.5%** |
 | Llama-3.2-3B-Instruct | 95% → 94% | 49% → **54%** | 97.5% → **100%** |
 | Llama-3.1-8B-Instruct (4-bit) | 94% → **96%** | 47.5% → **54%** | 100% → 100% |
+| Phi-4-mini-instruct | 89% → **90%** | 34% → **53%** | |
 
 With 100 HotpotQA paragraphs per question, Qwen3-4B's top citation is supporting 90% of the time with heads, against 77.5% without. The heads also work across languages: on 150 Arabic questions from [ARCD](https://huggingface.co/datasets/hsseinmz/arcd), with Arabic instructions, Qwen3-4B's built-in heads, found on English questions, put the right paragraph first 98% of the time (96% without heads). Heads also make `cite()` about 3 times faster: 0.3 s instead of 1 s per answer with 10 documents, and 1.2 s instead of 5 s with 100, for Qwen3-4B. Measured on a Kaggle T4 GPU with 80 to 150 questions per model (40 with 100 paragraphs), so differences of a few points are within noise. Treat citations as strong hints, not proof.
+
+Compared with [AT2](https://arxiv.org/abs/2504.13752), which learns a weight for every attention head from thousands of training examples, on the same 150 HotpotQA answers per model and with AT2's published estimators:
+
+| Model | | top citation supporting | both in the top 2 | time per answer |
+| --- | --- | ---: | ---: | ---: |
+| Llama-3.1-8B-Instruct (4-bit) | mantiq heads | **92.7%** | **58%** | **0.5 s** |
+| | AT2 | 92.0% | 44% | 2.0 s |
+| | hiding each paragraph | 92.7% | 47% | 1.5 s |
+| Phi-4-mini-instruct | mantiq heads | **90.0%** | **53%** | **0.3 s** |
+| | AT2 | 87.3% | 45% | 1.2 s |
+| | hiding each paragraph | 89.3% | 34% | 0.8 s |
+
+The top citations are within each other's 95% confidence intervals (about ±5 points), so they are on par; mantiq's heads find both supporting paragraphs more often and answer about 4 times faster, after calibrating on 20 questions the model wrote itself. AT2's Llama estimator was trained on the full-precision model and ran here on the 4-bit one. Reproduce with `examples/compare_with_at2.py`.
 
 `supported` catches answers that don't come from the knowledge. After the answer, the model is asked whether the knowledge states it, and `supported` is its probability of yes. To measure it, each HotpotQA question was answered once over its own paragraphs and once over another question's paragraphs, where the answer can't be found:
 

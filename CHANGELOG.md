@@ -5,9 +5,9 @@
 ### Added
 
 - `cite()` finds the documents an answer comes from, without re-reading the knowledge, and a `supported` score that flags answers that don't come from it (AUROC 0.97 on HotpotQA with Qwen3-4B, against 0.58 for the hiding-based score it replaces). `prepare_kvcache_from_loader()` accepts a list or a dict of named documents, and saved caches remember them.
-- Citation heads: a few attention heads per model that look at the document an answer comes from. They are built in for 10 models across Qwen3, Llama 3.1 and 3.2, Gemma 3 and Mistral, and `calibrate_citations()` finds them for any model, from questions the model writes itself. With them, `cite()` ranks documents in one pass: 93% top-citation accuracy on HotpotQA with Qwen3-4B (87% without), and about 3 times faster.
+- Citation heads: a few attention heads per model that look at the document an answer comes from. They are built in for 11 models across Qwen3, Llama 3.1 and 3.2, Gemma 3, Mistral and Phi-4, and `calibrate_citations()` finds them for any model, from questions the model writes itself. With them, `cite()` ranks documents in one pass: 93% top-citation accuracy on HotpotQA with Qwen3-4B (87% without), and about 3 times faster.
 - `update_kvcache()` updates a cache to new knowledge, re-reading it only from the first change onward. The result is the same as a new cache.
-- The knowledge is read in chunks (`prefill_chunk_size`, 1024 tokens by default), so large knowledge fits in memory on CPUs and on GPUs without flash attention.
+- The knowledge is read in chunks (`prefill_chunk_size`, 1024 tokens by default), so large knowledge fits in memory on CPUs and on GPUs without flash attention. Models whose position encoding changes with the length (longrope, as in Phi-3 and Phi-4, and dynamic NTK) read knowledge past that length in one pass, so the encoding stays consistent.
 - `stream_response()` yields the answer piece by piece as it is generated.
 - `temperature` and `top_p` sampling for `generate_response()`, `generate()` and `stream_response()`. The default stays greedy.
 - `model_kwargs` passes extra arguments to `from_pretrained`, e.g. `dtype`, `revision` or `attn_implementation`.
