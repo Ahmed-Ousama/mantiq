@@ -6,6 +6,11 @@
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
 [![license](https://img.shields.io/badge/license-MIT-green)](https://github.com/Ahmed-Ousama/mantiq/blob/main/LICENSE)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/mantiq-dark.svg">
+  <img alt="mantiq reads the documents into a KV cache once, answers a question and cites the document the answer comes from, then re-reads only the document that changed" src="images/mantiq.svg">
+</picture>
+
 ```python
 from mantiq import NaiveCAG
 

@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-label="mantiq reads the knowledge into a KV cache once, answers questions with citations, and updates the cache when documents change">
+<defs><marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9ca3af"/></marker></defs>
+<rect x="0.5" y="0.5" width="1199" height="479" rx="16" fill="#ffffff" stroke="#e5e7eb"/>
+<circle cx="62" cy="56" r="14" fill="#111827"/><text x="62" y="61" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff">1</text><text x="86" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#111827">Read the knowledge once</text>
+<rect x="48" y="96" width="220" height="46" rx="8" fill="#f9fafb" stroke="#e5e7eb"/>
+<rect x="48" y="96" width="6" height="46" rx="3" fill="#3b82f6"/>
+<text x="68" y="116" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#111827">delivery.md</text>
+<rect x="68" y="126" width="150" height="6" rx="3" fill="#d1d5db"/>
+<rect x="48" y="152" width="220" height="46" rx="8" fill="#f9fafb" stroke="#e5e7eb"/>
+<rect x="48" y="152" width="6" height="46" rx="3" fill="#8b5cf6"/>
+<text x="68" y="172" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#111827">returns.md</text>
+<rect x="68" y="182" width="120" height="6" rx="3" fill="#d1d5db"/>
+<rect x="48" y="208" width="220" height="46" rx="8" fill="#f9fafb" stroke="#e5e7eb"/>
+<rect x="48" y="208" width="6" height="46" rx="3" fill="#f59e0b"/>
+<text x="68" y="228" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#111827">prices.md</text>
+<rect x="68" y="238" width="138" height="6" rx="3" fill="#d1d5db"/>
+<line x1="158" y1="266" x2="158" y2="304" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" marker-end="url(#head)"/>
+<text x="172" y="290" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#6b7280">one pass over all documents</text>
+<text x="48" y="326" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="1.2" fill="#6b7280">KV CACHE</text>
+<rect x="48" y="336" width="96" height="40" rx="6" fill="#3b82f6" opacity="1"/>
+<rect x="59" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="71" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="83" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="95" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="107" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="119" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="131" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="148" y="336" width="96" height="40" rx="6" fill="#8b5cf6" opacity="1"/>
+<rect x="159" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="171" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="183" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="195" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="207" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="219" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="231" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="248" y="336" width="96" height="40" rx="6" fill="#f59e0b" opacity="1"/>
+<rect x="259" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="271" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="283" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="295" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="307" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="319" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="331" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<text x="48" y="420" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#111827">prepare_kvcache_from_loader()</text><text x="48" y="444" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#6b7280">saved to disk, reused for every question</text>
+<line x1="372" y1="220" x2="428" y2="220" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" marker-end="url(#head)"/>
+<circle cx="462" cy="56" r="14" fill="#111827"/><text x="462" y="61" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff">2</text><text x="486" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#111827">Answer and cite</text>
+<rect x="524" y="96" width="228" height="42" rx="21" fill="#eef2ff"/>
+<text x="638" y="122" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#3730a3">Can I send it back?</text>
+<rect x="448" y="148" width="304" height="46" rx="12" fill="#f9fafb" stroke="#e5e7eb"/>
+<text x="464" y="176" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#111827">Yes, within 14 days with the receipt.</text>
+<rect x="448" y="204" width="304" height="100" rx="12" fill="#f9fafb" stroke="#e5e7eb"/>
+<text x="464" y="228" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="1.2" fill="#6b7280">SOURCE</text>
+<rect x="464" y="240" width="116" height="28" rx="14" fill="#ede9fe" stroke="#8b5cf6"/>
+<text x="522" y="259" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" fill="#5b21b6">returns.md</text>
+<rect x="590" y="240" width="146" height="28" rx="14" fill="#f0fdf4" stroke="#86efac"/>
+<path d="M 604 254 l 5 5 l 9 -10" fill="none" stroke="#166534" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="626" y="259" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#166534">supported 0.98</text>
+<text x="464" y="290" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-style="italic" fill="#6b7280">"Returns are accepted within 14 days..."</text>
+<line x1="596" y1="306" x2="596" y2="334" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="3 3"/>
+<text x="448" y="326" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="1.2" fill="#6b7280">KV CACHE</text>
+<rect x="448" y="336" width="96" height="40" rx="6" fill="#3b82f6" opacity="0.22"/>
+<rect x="459" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="471" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="483" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="495" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="507" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="519" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="531" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="548" y="336" width="96" height="40" rx="6" fill="#8b5cf6" opacity="1"/>
+<rect x="559" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="571" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="583" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="595" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="607" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="619" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="631" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="648" y="336" width="96" height="40" rx="6" fill="#f59e0b" opacity="0.22"/>
+<rect x="659" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="671" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="683" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="695" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="707" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="719" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<rect x="731" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.077"/>
+<text x="596" y="394" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8b5cf6">the answer comes from here</text>
+<text x="448" y="420" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#111827">cite()</text><text x="448" y="444" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#6b7280">one pass with the model's citation heads</text>
+<line x1="772" y1="220" x2="828" y2="220" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" marker-end="url(#head)"/>
+<circle cx="862" cy="56" r="14" fill="#111827"/><text x="862" y="61" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff">3</text><text x="886" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#111827">Keep it up to date</text>
+<rect x="848" y="96" width="304" height="70" rx="8" fill="#f9fafb" stroke="#e5e7eb"/>
+<rect x="848" y="96" width="6" height="70" rx="3" fill="#f59e0b"/>
+<text x="868" y="120" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#111827">prices.md</text>
+<text x="952" y="120" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#6b7280">changed</text>
+<text x="868" y="150" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#111827">TV:</text>
+<text x="900" y="150" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#6b7280">$499</text>
+<line x1="900" y1="145" x2="936" y2="145" stroke="#6b7280" stroke-width="1.5"/>
+<text x="944" y="150" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#6b7280">→</text>
+<text x="966" y="150" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#f59e0b">$449</text>
+<line x1="1098" y1="174" x2="1098" y2="326" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" marker-end="url(#head)"/>
+<text x="848" y="326" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="1.2" fill="#6b7280">KV CACHE</text>
+<rect x="848" y="336" width="96" height="40" rx="6" fill="#3b82f6" opacity="1"/>
+<rect x="859" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="871" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="883" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="895" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="907" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="919" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="931" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="948" y="336" width="96" height="40" rx="6" fill="#8b5cf6" opacity="1"/>
+<rect x="959" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="971" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="983" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="995" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="1007" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="1019" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="1031" y="344" width="2" height="24" rx="1" fill="#ffffff" opacity="0.35"/>
+<rect x="1049" y="337" width="94" height="38" rx="6" fill="#fffbeb" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="946" y="394" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#6b7280">kept</text>
+<line x1="848" y1="384" x2="1044" y2="384" stroke="#d1d5db" stroke-width="1.5"/>
+<text x="1096" y="394" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#f59e0b">re-read</text>
+<text x="848" y="420" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#111827">update_kvcache()</text><text x="848" y="444" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#6b7280">only from the first change: 0.3 s, not 11.8 s</text>
+</svg>
