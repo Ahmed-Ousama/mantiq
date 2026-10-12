@@ -6,7 +6,7 @@ import torch
 from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
 from transformers.cache_utils import DynamicCache
 
-from helpers import NO_SYSTEM_TEMPLATE, THINKING_TEMPLATE, make_tokenizer
+from helpers import NO_SYSTEM_TEMPLATE, THINKING_TEMPLATE, make_llama, make_tokenizer
 
 DATASET = [
     {"question": "What are the features of this TV?", "answer": "This TV has 4K resolution and smart features.", "context": "55-inch TV with advanced display technology."},
@@ -19,7 +19,7 @@ QUESTION = "Does this refrigerator save energy?"
 
 def capture_input_ids(model):
     calls = []
-    model.register_forward_pre_hook(lambda module, args, kwargs: calls.append(kwargs["input_ids"]), with_kwargs=True)
+    model.get_input_embeddings().register_forward_pre_hook(lambda module, args: calls.append(args[0]))
     return calls
 
 
@@ -52,6 +52,16 @@ def test_knowledge_prompt_has_a_single_bos(make_cag):
     cag.prepare_kvcache(DATASET, None, INSTRUCTION)
 
     assert calls[0][0].tolist().count(cag.tokenizer.bos_token_id) == 1
+
+
+def test_preparing_knowledge_skips_the_output_layer(make_cag):
+    cag = make_cag()
+    calls = []
+    cag.model.get_output_embeddings().register_forward_hook(lambda module, args, output: calls.append(output))
+
+    cag.prepare_kvcache(DATASET, None, INSTRUCTION)
+
+    assert calls == []
 
 
 def test_query_prompt_continues_the_user_turn(make_cag):
@@ -171,3 +181,67 @@ def test_reading_other_files_raises(make_cag, tmp_path, content):
 
     with pytest.raises(ValueError, match="not a mantiq KV cache"):
         cag.read_kv_cache(str(path))
+
+
+def test_stream_matches_generate_response(make_cag):
+    cag = make_cag()
+    kv, _ = cag.prepare_kvcache(DATASET, None, INSTRUCTION)
+    length = kv.get_seq_length()
+
+    streamed = "".join(cag.stream_response(QUESTION, kv, max_new_tokens=8))
+
+    assert streamed == cag.generate_response(QUESTION, kv, max_new_tokens=8)
+    assert kv.get_seq_length() == length
+
+
+def test_stream_stopped_early_restores_the_cache(make_cag):
+    cag = make_cag()
+    kv, _ = cag.prepare_kvcache(DATASET, None, INSTRUCTION)
+    length = kv.get_seq_length()
+
+    for _ in cag.stream_response(QUESTION, kv, max_new_tokens=8):
+        break
+
+    assert kv.get_seq_length() == length
+
+
+def test_stream_does_not_split_multi_byte_characters(make_cag, monkeypatch):
+    cag = make_cag()
+    word = "مرحبا"
+    token_ids = cag.tokenizer.encode(word, add_special_tokens=False)
+    assert len(token_ids) > len(word)  # each character takes more than one token
+    monkeypatch.setattr(cag, "_generate_tokens", lambda *args: iter(token_ids))
+
+    chunks = list(cag.stream_response(QUESTION, None))
+
+    assert "".join(chunks) == word
+    assert not any("�" in chunk for chunk in chunks)
+
+
+def test_sampling_is_reproducible_with_a_seed(make_cag):
+    cag = make_cag()
+    kv, _ = cag.prepare_kvcache(DATASET, None, INSTRUCTION)
+
+    torch.manual_seed(1)
+    first = cag.generate(QUESTION, kv, max_new_tokens=8, temperature=1.0)
+    torch.manual_seed(1)
+    again = cag.generate(QUESTION, kv, max_new_tokens=8, temperature=1.0)
+
+    assert torch.equal(first, again)
+
+
+def test_tiny_top_p_keeps_only_the_most_likely_token(make_cag):
+    cag = make_cag()
+    kv, _ = cag.prepare_kvcache(DATASET, None, INSTRUCTION)
+
+    sampled = cag.generate(QUESTION, kv, max_new_tokens=8, temperature=1.0, top_p=1e-6)
+
+    assert torch.equal(sampled, cag.generate(QUESTION, kv, max_new_tokens=8))
+
+
+def test_knowledge_longer_than_the_context_window_raises(make_cag):
+    tokenizer = make_tokenizer()
+    cag = make_cag(tokenizer=tokenizer, model=make_llama(tokenizer, max_position_embeddings=32))
+
+    with pytest.raises(ValueError, match="32-token context window"):
+        cag.prepare_kvcache(DATASET, None, INSTRUCTION)

@@ -54,7 +54,7 @@ def make_tokenizer(chat_template=LLAMA3_STYLE_TEMPLATE):
     return fast
 
 
-def make_llama(tokenizer, seed=0):
+def make_llama(tokenizer, seed=0, max_position_embeddings=4096):
     torch.manual_seed(seed)
     config = LlamaConfig(
         vocab_size=len(tokenizer),
@@ -63,7 +63,7 @@ def make_llama(tokenizer, seed=0):
         num_hidden_layers=2,
         num_attention_heads=4,
         num_key_value_heads=2,
-        max_position_embeddings=4096,
+        max_position_embeddings=max_position_embeddings,
         bos_token_id=tokenizer.bos_token_id,
         eos_token_id=tokenizer.eos_token_id,
     )

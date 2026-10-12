@@ -10,7 +10,8 @@ from .json_loader import JSON
 from .markdown_loader import Markdown
 from .microsoftfile_loader import MicrosoftFile
 from .pdf_loader import PDF
+from .text_loader import Text
 from .webpage_loader import WebPage
 from .factory import LoaderFactory
 
-__all__ = ["CSV", "Directory", "HTML", "JSON", "Markdown", "MicrosoftFile", "PDF", "WebPage", "LoaderFactory"]
+__all__ = ["CSV", "Directory", "HTML", "JSON", "Markdown", "MicrosoftFile", "PDF", "Text", "WebPage", "LoaderFactory"]

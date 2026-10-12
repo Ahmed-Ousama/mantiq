@@ -42,6 +42,25 @@ def test_csv(tmp_path):
     assert "TV" in text and "800" in text
 
 
+def test_loader_types_are_case_insensitive(tmp_path):
+    path = tmp_path / "products.csv"
+    path.write_text("name,price\nTV,500\n")
+
+    assert LoaderFactory.get_loader("csv", str(path)) == LoaderFactory.get_loader("CSV", str(path))
+
+
+def test_unsupported_loader_lists_the_supported_types():
+    with pytest.raises(ValueError, match="Supported types: .*PDF"):
+        LoaderFactory.get_loader("Excel", "data.xlsx")
+
+
+def test_text(tmp_path):
+    path = tmp_path / "faq.txt"
+    path.write_text("الشحن مجاني للطلبات فوق 500 جنيه.", encoding="utf-8")
+
+    assert "الشحن مجاني" in LoaderFactory.get_loader("Text", str(path))
+
+
 def test_markdown_and_html(tmp_path):
     pytest.importorskip("unstructured")
     md = tmp_path / "notes.md"
