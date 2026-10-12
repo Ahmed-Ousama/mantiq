@@ -282,3 +282,19 @@ def test_document_names_that_are_not_strings_survive_saving(make_cag, tmp_path):
     loaded = cag.read_kv_cache(str(tmp_path / "kv_cache.pt"))
 
     assert [d.name for d in loaded.documents] == ["tv.md"]
+
+
+@pytest.mark.parametrize("written, expected", [
+    ("<think>\nThe text is about a TV.\n</think>\n\nWhat does the TV cost?", "What does the TV cost?"),
+    ("<think>\nStill thinking when the tokens ran out", "The TV costs $499."),
+])
+def test_self_written_questions_leave_out_thinking(make_cag, monkeypatch, written, expected):
+    cag = make_cag()
+    template_kwargs = []
+    apply_chat_template = cag.tokenizer.apply_chat_template
+    monkeypatch.setattr(cag.tokenizer, "apply_chat_template",
+                        lambda *a, **k: template_kwargs.append(k) or apply_chat_template(*a, **k))
+    monkeypatch.setattr(cag.tokenizer, "decode", lambda *a, **k: written)
+
+    assert cag._write_question("The TV costs $499.") == expected
+    assert template_kwargs[-1]["enable_thinking"] is False

@@ -1,5 +1,6 @@
 import bisect
 import os
+import re
 import pickle
 import time
 import warnings
@@ -157,6 +158,9 @@ class NaiveCAG:
         same = 0
         while same < min(len(old_ids), len(new_ids)) and old_ids[same] == new_ids[same]:
             same += 1
+        limit = self._length_dependent_rope_limit()
+        if limit is not None and (len(old_ids) > limit) != (len(new_ids) > limit):
+            same = 0  # the cached part was read with the other position encoding (see _extend)
         _crop_to(past_key_values, same)
         try:
             self._extend(past_key_values, input_ids[:, same:])
@@ -227,19 +231,20 @@ class NaiveCAG:
         prefix, suffix = prompt.rsplit(_QUESTION_PLACEHOLDER, 1)
         return prefix, suffix
 
-    def _apply_chat_template(self, system: str, user: str) -> str:
+    def _apply_chat_template(self, system: str, user: str, **template_kwargs) -> str:
         if self.tokenizer.chat_template is None:
             return f"{system}\n\n{user}\n\nAnswer:\n"
+        template_kwargs = {**self.chat_template_kwargs, **template_kwargs}
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         try:
             return self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, **self.chat_template_kwargs
+                messages, tokenize=False, add_generation_prompt=True, **template_kwargs
             )
         except TemplateError:
             # Some templates (e.g. Gemma) reject the system role; fold it into the user turn.
             messages = [{"role": "user", "content": f"{system}\n\n{user}"}]
             return self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, **self.chat_template_kwargs
+                messages, tokenize=False, add_generation_prompt=True, **template_kwargs
             )
 
     def preprocess_knowledge(self, prompt: str) -> KnowledgeCache:
@@ -268,11 +273,17 @@ class NaiveCAG:
 
     def _extend(self, past_key_values: KnowledgeCache, input_ids: torch.Tensor):
         """Run the knowledge tokens through the model in chunks, appending them to the cache."""
+        # Chunks bound the attention memory where it is computed in full (on CPU, and on GPUs
+        # without flash attention): chunk x knowledge instead of knowledge x knowledge.
+        chunk_size = self.prefill_chunk_size
+        limit = self._length_dependent_rope_limit()
+        if limit is not None and past_key_values.get_seq_length() + input_ids.shape[-1] > limit:
+            # These models switch position encodings once a pass goes past the limit, so chunks
+            # on both sides of it would disagree: read the knowledge in one pass.
+            chunk_size = max(1, input_ids.shape[-1])
         with torch.no_grad():
-            # Chunks bound the attention memory where it is computed in full (on CPU, and on GPUs
-            # without flash attention): chunk x knowledge instead of knowledge x knowledge.
-            for start in range(0, input_ids.shape[-1], self.prefill_chunk_size):
-                chunk = input_ids[:, start:start + self.prefill_chunk_size]
+            for start in range(0, input_ids.shape[-1], chunk_size):
+                chunk = input_ids[:, start:start + chunk_size]
                 filled = past_key_values.get_seq_length()
                 # Run the model without its output layer: only the cache is needed, and logits for
                 # every knowledge token (tokens x vocabulary size) can take more memory than the model.
@@ -527,6 +538,7 @@ class NaiveCAG:
         prompt = self._apply_chat_template(
             "You write questions.",
             f"Write one short question that the following text answers. Reply with the question only.\n\n{text[:max_chars]}",
+            enable_thinking=False,  # Qwen3 and other thinking templates; ignored by the rest
         )
         input_ids = self.tokenizer.encode(
             prompt, add_special_tokens=self.tokenizer.chat_template is None, return_tensors="pt"
@@ -534,7 +546,8 @@ class NaiveCAG:
         output = self.model.generate(
             input_ids, max_new_tokens=40, do_sample=False, pad_token_id=self.tokenizer.eos_token_id
         )
-        question = self.tokenizer.decode(output[0, input_ids.shape[-1]:], skip_special_tokens=True).strip()
+        question = self.tokenizer.decode(output[0, input_ids.shape[-1]:], skip_special_tokens=True)
+        question = re.sub(r"<think>.*?(</think>|$)", "", question, flags=re.DOTALL).strip()
         return question.split("\n")[0] or text[:200]
 
     def _attend(self, query_ids: list, answer_ids: list, past_key_values: KnowledgeCache, collect: bool):
@@ -576,6 +589,23 @@ class NaiveCAG:
             _crop_to(past_key_values, origin_len)
         logprobs = logits[0, len(query_ids) - 1:-1].float().log_softmax(dim=-1)
         return logprobs.gather(-1, input_ids[0, len(query_ids):, None]).sum().item()
+
+    def _length_dependent_rope_limit(self) -> Optional[int]:
+        """
+        For models whose rotary position encoding depends on how far a forward pass reaches
+        (longrope, as in Phi-3 and Phi-4, and dynamic NTK scaling): the length past which it
+        changes. None for other models.
+        """
+        config = self.model.config
+        config = config.get_text_config() if hasattr(config, "get_text_config") else config
+        rope = getattr(config, "rope_parameters", None) or getattr(config, "rope_scaling", None) or {}
+        if (rope.get("rope_type") or rope.get("type")) not in ("longrope", "dynamic"):
+            return None
+        return (
+            rope.get("original_max_position_embeddings")
+            or getattr(config, "original_max_position_embeddings", None)
+            or config.max_position_embeddings
+        )
 
     def _input_device(self) -> torch.device:
         return self.model.get_input_embeddings().weight.device

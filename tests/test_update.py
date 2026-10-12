@@ -119,3 +119,44 @@ def test_a_model_that_does_not_fill_the_cache_raises(make_cag, monkeypatch):
 
     with pytest.raises(ValueError, match="doesn't fill the cache"):
         cag.prepare_kvcache_from_loader(DOCUMENTS)
+
+
+def make_long_rope_cag(make_cag, limit=64):
+    """A tiny Llama with Phi-3-style longrope: its position encoding changes past `limit` tokens."""
+    tokenizer = make_tokenizer()
+    rope = {"rope_type": "longrope", "short_factor": [1.0] * 4, "long_factor": [4.0] * 4,
+            "original_max_position_embeddings": limit}
+    model = make_llama(tokenizer, rope_scaling=rope, original_max_position_embeddings=limit)
+    return make_cag(tokenizer=tokenizer, model=model)
+
+
+def test_long_rope_models_read_knowledge_past_the_limit_in_one_pass(make_cag):
+    cag = make_long_rope_cag(make_cag)
+    whole, _ = cag.prepare_kvcache_from_loader(DOCUMENTS)
+    assert whole.get_seq_length() > 64
+
+    cag.prefill_chunk_size = 7
+    chunked, _ = cag.prepare_kvcache_from_loader(DOCUMENTS)
+
+    assert_same_cache(chunked, whole)
+
+
+def test_long_rope_models_update_like_a_fresh_cache(make_cag):
+    cag = make_long_rope_cag(make_cag)
+    kv, _ = cag.prepare_kvcache_from_loader(DOCUMENTS)
+
+    cag.update_kvcache(kv, NEW_PRICES)
+
+    assert_same_cache(kv, cag.prepare_kvcache_from_loader(NEW_PRICES)[0])
+
+
+def test_long_rope_models_update_like_a_fresh_cache_when_crossing_the_limit(make_cag):
+    longer = {**DOCUMENTS, "prices.md": DOCUMENTS["prices.md"] + " The washer costs $649 and ships free."}
+    length = make_cag().prepare_kvcache_from_loader(DOCUMENTS)[0].get_seq_length()
+    cag = make_long_rope_cag(make_cag, limit=length + 2)
+    kv, _ = cag.prepare_kvcache_from_loader(DOCUMENTS)
+
+    cag.update_kvcache(kv, longer)
+
+    assert kv.get_seq_length() > length + 2
+    assert_same_cache(kv, cag.prepare_kvcache_from_loader(longer)[0])
