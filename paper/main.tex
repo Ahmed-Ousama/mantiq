@@ -47,7 +47,7 @@ Our contributions are:
 \begin{itemize}
 \item \textbf{Cache-native leave-one-out} attribution for CAG, which hides documents from a cached knowledge base through the attention mask (\S\ref{sec:loo}).
 \item \textbf{Self-calibrated citation heads}, selected by their agreement with that signal on questions the model writes itself (\S\ref{sec:heads}). Calibration takes minutes on one consumer GPU and needs no labels, and we ship heads for 11 models from five families.
-\item \textbf{An evaluation} on HotpotQA, SQuAD, MuSiQue and Arabic ARCD questions (\S\ref{sec:results}). Citation heads beat their own teacher, need about five calibration questions, match AT2's top citation at a quarter of its cost while finding both supporting paragraphs more often, and transfer across languages. Analyzing them shows that in Gemma~3 every selected head lies in a global-attention layer, and that within the Qwen3 family, models of the same depth select largely the same heads.
+\item \textbf{An evaluation} on HotpotQA, SQuAD, MuSiQue and Arabic ARCD questions (\S\ref{sec:results}). Citation heads beat their own teacher, need about five calibration questions, match AT2's top citation at a quarter of its cost while finding both supporting paragraphs more often, and transfer across languages. Switching off the top 32 of them leaves the model nearly blind to its knowledge (accuracy 67.5\% $\to$ 26.0\%, against about 60\% for random heads from the same layers and 52.0\% for the top 32 retrieval heads), and they find both supporting paragraphs more often than retrieval heads. Analyzing them shows that in Gemma~3 every selected head lies in a global-attention layer, and that within the Qwen3 family, models of the same depth select largely the same heads.
 \item \textbf{A study of a verification score} for CAG answers, with a negative result: it reliably flags answers that do not come from the knowledge, but no signal we tried detects wrong answers that the knowledge does state (\S\ref{sec:supported}).
 \item \textbf{Practical lessons} for KV-cache reuse: two failure modes we hit while calibrating, chunked prefill with length-dependent rotary embeddings and thinking-mode chat templates, and an exact incremental cache update (\S\ref{sec:failures}, \S\ref{sec:updates}). All of it is released as the open-source library \emph{mantiq}.
 \end{itemize}
@@ -59,7 +59,7 @@ Our contributions are:
 
 \paragraph{Context attribution.} Attribution can be generated, by prompting or training models to cite~\citep{gao2023alce,zhang2024longcite}, or measured on a fixed answer. ContextCite~\citep{cohenwang2024contextcite} fits a sparse linear surrogate to the answer's likelihood under random context ablations, and AttriBoT~\citep{liu2025attribot} approximates leave-one-out attribution efficiently with cached activations, hierarchical attribution and smaller proxy models; our cache-native leave-one-out goes further and re-encodes nothing after the hidden document, which is cheaper but approximate. AT2~\citep{cohenwang2025at2} treats the attention weights of every head as features and learns per-model coefficients that predict ablation effects, from 2{,}000 training examples with 32 ablations each. It is the closest work to ours, and we compare with its released estimators in \S\ref{sec:at2}. MIRAGE~\citep{qi2024mirage} attributes answers with saliency over model internals, and \citet{basu2025circuits} attribute extractive answers with a single head found through circuit analysis. Evaluation frameworks for attribution include AIS~\citep{rashkin2023ais} and attributed QA~\citep{bohnet2022aqa}.
 
-\paragraph{Attention heads with a function.} Only a few heads matter for many behaviors~\citep{voita2019heads,michel2019sixteen}, and some implement identifiable mechanisms such as induction~\citep{olsson2022induction} or copying from a long context (retrieval heads; \citealp{wu2024retrievalhead}). Query-focused retrieval heads~\citep{zhang2025qrhead} rank passages by the attention of heads selected on a handful of labeled examples from a real task, and in-context re-ranking~\citep{chen2025icr} aggregates the attention of all heads, calibrated with a content-free query. Our heads are selected without labels, from the model's own questions and a causal signal, and attention alone is known to be an unreliable explanation~\citep{jain2019attention,wiegreffe2019attention}; using leave-one-out as the selection criterion ties the selected heads to the effect of removing a document.
+\paragraph{Attention heads with a function.} Only a few heads matter for many behaviors~\citep{voita2019heads,michel2019sixteen}, and some implement identifiable mechanisms such as induction~\citep{olsson2022induction} or copying from a long context (retrieval heads; \citealp{wu2024retrievalhead}). Query-focused retrieval heads~\citep{zhang2025qrhead} rank passages by the attention of heads selected on a handful of labeled examples from a real task, and in-context re-ranking~\citep{chen2025icr} aggregates the attention of all heads, calibrated with a content-free query. Retrieval heads are found without labels too, from synthetic needle-in-a-haystack copying; ours come from natural questions the model writes and a causal signal, and \S\ref{sec:retrieval} compares the two directly. Attention alone is known to be an unreliable explanation~\citep{jain2019attention,wiegreffe2019attention}; using leave-one-out as the selection criterion ties the selected heads to the effect of removing a document.
 
 \paragraph{Detecting unsupported answers.} Models can estimate whether their answers are true (P(True); \citealp{kadavath2022know}), and disagreement between sampled answers signals hallucination~\citep{manakul2023selfcheckgpt,kuhn2023semantic}. Lookback Lens~\citep{chuang2024lookback} trains a classifier on how much each head attends to the context. We compare several of these signals for answers given from a cached knowledge base.
 
@@ -328,6 +328,50 @@ leave-one-out (the calibration signal) & 86.7 & 80.0 & 98.0 & 95.0 \\
 \caption{Layers of the eight built-in citation heads of each model; darker marks are layers with several selected heads. Red: Gemma~3, where every selected head is in a global-attention layer.}
 \label{fig:depth}
 \end{figure}
+
+\paragraph{The heads are the model's eyes on the knowledge.} Selection by agreement with leave-one-out says that the heads look at the right document, not that the model reads through them. To test this, we switch heads off (zero their output) while Qwen3-4B reads the question and writes the answer, with the knowledge cached as usual, on 200 HotpotQA questions (Table~\ref{tab:knockout}). As controls, we switch off as many random heads from the same layers, in three draws. Switching off the top 8 citation heads costs 6.5 points of accuracy, about as much as 8 random heads (0.5 to 3 points), so other heads compensate. Switching off the top 32 makes the model nearly blind to its knowledge: accuracy falls from 67.5\% to 26.0\%, the share of answers found in the knowledge from 70\% to 17\%, and the model often replies that the context does not mention what it asks about, while 32 random heads from the same layers leave 57.5--62.5\% accuracy. This agrees with ablations of retrieval heads~\citep{wu2024retrievalhead} and in-context heads~\citep{kahardipraja2025atlas}; here the heads come from 20 questions the model wrote itself.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Switching heads off while Qwen3-4B answers 200 HotpotQA questions from its cached knowledge. Random heads come from the same layers as the citation heads (three draws; range shown). \emph{In knowledge}: the answer appears verbatim in the paragraphs.}
+\label{tab:knockout}
+\begin{tabular}{lccc}
+\toprule
+Heads switched off & Accuracy (\%) & In knowledge (\%) & Mean \texttt{supported} \\
+\midrule
+none & 67.5 [60.5, 73.5] & 70 & 0.93 \\
+top 8 citation heads & 61.0 [54.5, 68.0] & 68 & 0.90 \\
+8 random heads & 64.5--67.0 & 58--76 & 0.91--0.92 \\
+top 32 citation heads & \best{26.0} [20.5, 32.0] & \best{17} & \best{0.59} \\
+32 random heads & 57.5--62.5 & 52--76 & 0.82--0.90 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Citation heads are not retrieval heads.}
+\label{sec:retrieval}
+Retrieval heads~\citep{wu2024retrievalhead} are found by hiding a needle sentence in a long haystack and keeping the heads whose most-attended token is the needle token being copied. We found them the same way for Qwen3-4B and Phi-4-mini (haystacks of 1{,}000 to 4{,}000 tokens of unrelated HotpotQA paragraphs, 5 depths, 3 needles) and compared them with citation heads on the same answers (Table~\ref{tab:retrieval}). The two sets overlap only partly: 2 and 1 of the top 8 heads are shared, 9 and 15 of the top 32, and the 8 citation heads of Qwen3-4B rank between 0th and 67th of 1{,}152 heads by retrieval score. For the top citation they are on par, but citation heads find both supporting paragraphs 20.0 [13.3, 26.7] points more often on Qwen3-4B and 8.7 [1.3, 15.3] on Phi-4-mini. And switching off the top 32 citation heads hurts answers much more than switching off the top 32 retrieval heads ($-26.0$ [$-33.0$, $-19.0$] and $-15.0$ [$-21.0$, $-9.5$] points of accuracy): copying a needle and reading the documents an answer comes from rely on overlapping but different heads.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Citation heads vs.\ retrieval heads~\citep{wu2024retrievalhead} found for the same model. Citation: 150 HotpotQA questions (10 paragraphs). Knockout: accuracy on 200 HotpotQA questions with the top 32 heads of each kind switched off while answering (no heads switched off: 67.5\% for Qwen3-4B, 57.5\% for Phi-4-mini).}
+\label{tab:retrieval}
+\begin{tabular}{llccc}
+\toprule
+Model & Heads & Top-1 (\%) & Both@2 (\%) & Accuracy, top 32 off (\%) \\
+\midrule
+\multirow{3}{*}{Qwen3-4B} & citation heads & 90.7 [86.0, 95.3] & \best{56.7} [48.7, 64.0] & \best{26.0} [20.0, 32.5] \\
+& retrieval heads & 91.3 [86.7, 95.3] & 36.7 [28.7, 44.7] & 52.0 [45.5, 59.0] \\
+& leave-one-out & 86.0 [80.7, 91.3] & 37.3 [30.0, 45.3] & \\
+\midrule
+\multirow{3}{*}{Phi-4-mini} & citation heads & 90.0 [84.7, 94.7] & \best{52.7} [44.7, 60.7] & \best{15.0} [10.5, 20.0] \\
+& retrieval heads & 88.0 [82.7, 93.3] & 44.0 [36.0, 52.0] & 30.0 [23.5, 36.5] \\
+& leave-one-out & 89.3 [84.0, 94.0] & 34.0 [26.7, 42.0] & \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Failure modes found while calibrating}
 \label{sec:failures}
