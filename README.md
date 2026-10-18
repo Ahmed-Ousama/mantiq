@@ -194,9 +194,41 @@ On harder questions from [MuSiQue](https://github.com/StonyBrookNLP/musique) (20
 | Llama-3.1-8B-Instruct (4-bit) | 87% | 69% |
 | Qwen3-4B, Arabic questions | 92% | 70% |
 
-The numbers are AUROC over 100 questions per model (80 for Mistral, Gemma and Llama, 150 in Arabic): how often `supported` scores an answer from the right paragraphs above one from the wrong paragraphs (first column), or a correct answer above a wrong one (second column). 50% is guessing. So `supported` reliably flags made-up answers, but it hardly helps with a wrong answer that the knowledge does state, for example a name taken from the wrong paragraph. It works best with models that answer without thinking first, like Qwen3 with `enable_thinking` off.
+The numbers are AUROC over 100 questions per model (80 for Mistral, Gemma and Llama, 150 in Arabic): how often `supported` scores an answer from the right paragraphs above one from the wrong paragraphs (first column), or a correct answer above a wrong one (second column). 50% is guessing. So `supported` reliably flags made-up answers, but it hardly helps with a wrong answer that the knowledge does state, for example a name taken from the wrong paragraph; for those, see [Checking answers](#checking-answers). It works best with models that answer without thinking first, like Qwen3 with `enable_thinking` off.
 
 Reproduce with `python examples/evaluate_citations.py results.jsonl --model Qwen/Qwen3-4B --dtype float16`, and the Arabic results with `examples/evaluate_citations_arabic.py`.
+
+### Checking answers
+
+Most wrong answers are not made up: the model takes the wrong name from the right paragraph, or stops at a step on the way (the team instead of its owner). `supported` can't catch those, because the knowledge does state them. For models with a built-in answer check, Qwen3-4B and Qwen3-1.7B for now, `cite()` also returns a `confidence` that does:
+
+```python
+cag = NaiveCAG("Qwen/Qwen3-4B", chat_template_kwargs={"enable_thinking": False})
+cited = cag.cite(question, answer, kv_cache)
+cited.confidence  # from 0 to 1: how likely the answer is right
+```
+
+The check reads the model's internal state as it reads the question and its own answer, in one short pass. It was trained without any reference answers: on 2,000 HotpotQA questions, Qwen3-4B answered once fast and once with thinking on, and the check learned to predict when the two agree. Qwen3-1.7B's own thinking rarely changes its answers, so its check learned instead whether its answer agrees with Qwen3-4B's thinking answer. How well they separate right from wrong answers, against a judge that saw the reference answers (AUROC; 50% is guessing):
+
+| | HotpotQA | MuSiQue | SQuAD |
+| --- | ---: | ---: | ---: |
+| Qwen3-4B: `supported` | 69% | 63% | 76% |
+| Qwen3-4B: token probabilities of the answer | 63% | 55% | 69% |
+| **Qwen3-4B: `confidence`** | **80%** | **74%** | **77%** |
+| Qwen3-4B: answering again with thinking and comparing | 83% | 71% | 82% |
+| Qwen3-1.7B: `supported` | 66% | 62% | 64% |
+| **Qwen3-1.7B: `confidence`** | **76%** | **70%** | **67%** |
+
+<sub>600 HotpotQA questions and 300 each from MuSiQue and SQuAD, none of them seen in training; MuSiQue and SQuAD are different datasets from the one the checks were trained on. Qwen3-4B's check measured through mantiq on the float16 model; it was trained on the 4-bit one and works with both. The judge is Qwen3-4B with thinking on; with Qwen3-8B as the judge instead, the two judges agree on 89–97% of answers and the checks score as high or higher (Qwen3-4B: 82%, 80%, 77%).</sub>
+
+Thinking makes answers more accurate but is slow, so `generate_checked_response()` answers fast and thinks again only when the check isn't confident:
+
+```python
+checked = cag.generate_checked_response(question, kv_cache)
+checked.answer, checked.confidence, checked.rethought
+```
+
+With the default threshold, Qwen3-4B thinks again on 31% of HotpotQA questions and goes from 67.3% to 77.7% correct, against 82.2% when thinking on every question; on SQuAD it thinks on 10% and goes from 90.0% to 91.7% (93.3% always thinking). Raise the threshold to think more often. Qwen3-1.7B gains little from its own thinking (58.7% to 60.3% on HotpotQA), so for it `confidence` is better used to flag answers or decline to answer.
 
 ### Updating the knowledge
 
@@ -265,7 +297,7 @@ cag = NaiveCAG(
 - Multi-turn conversations on top of the cached knowledge.
 - Answering several questions at once from one cache.
 - Built-in citation heads for more models.
-- Catching wrong answers that the knowledge does state; `supported` only catches made-up ones.
+- Answer checks for more models, and a way to train one for any model.
 
 Have an idea or a use case? [Open an issue](https://github.com/Ahmed-Ousama/mantiq/issues).
 

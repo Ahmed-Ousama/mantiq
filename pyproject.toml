@@ -53,5 +53,8 @@ Paper = "https://arxiv.org/abs/2412.15605"
 [tool.setuptools.packages.find]
 include = ["mantiq*"]
 
+[tool.setuptools.package-data]
+"mantiq.cag" = ["answer_checks/*.pt"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

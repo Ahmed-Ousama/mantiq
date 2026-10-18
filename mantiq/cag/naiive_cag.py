@@ -1,11 +1,12 @@
 import bisect
+import importlib.resources
 import os
 import re
 import pickle
 import time
 import warnings
 from collections.abc import Mapping
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Union
 
 import torch
 from jinja2.exceptions import TemplateError
@@ -13,8 +14,10 @@ from transformers.cache_utils import DynamicCache
 from ..cag.utils import load_model, GenericDatasetProcessor, DatasetParser
 from .citations import (
     COLLECTING_ATTENTION,
+    KNOWN_ANSWER_CHECKS,
     KNOWN_CITATION_HEADS,
     AttentionCollector,
+    CheckedAnswer,
     Citation,
     CitedAnswer,
     Document,
@@ -43,6 +46,7 @@ class NaiveCAG:
         chat_template_kwargs: Optional[dict] = None,
         model_kwargs: Optional[dict] = None,
         citation_heads: Optional[list] = None,
+        answer_check: Union[None, bool, str, dict] = None,
     ):
         """
         Initialize NaiveCAG.
@@ -60,6 +64,10 @@ class NaiveCAG:
                 e.g. {"dtype": torch.bfloat16} or {"revision": "main"}.
             citation_heads: (layer, head) pairs from an earlier calibrate_citations() with this model.
                 Defaults to known heads for some models (KNOWN_CITATION_HEADS); [] turns them off.
+            answer_check: How confident to be in an answer, read from the model's internal state.
+                Defaults to the built-in check for some models (KNOWN_ANSWER_CHECKS); False turns it
+                off. A path or a dict with "layers", "weight" ([layers, hidden size]), "bias" and
+                optionally "threshold" (default 0.5) sets one.
         """
         self.model_name = model_name
         self.model, self.tokenizer = load_model(model_name, hf_token, quantized, trust_remote_code, model_kwargs)
@@ -69,6 +77,7 @@ class NaiveCAG:
         if citation_heads is None:
             citation_heads = KNOWN_CITATION_HEADS.get(model_name)
         self.citation_heads = [tuple(head) for head in citation_heads] if citation_heads else None
+        self.answer_check = _load_answer_check(model_name if answer_check is None else answer_check)
         self._yes_no_ids = None  # token ids that start "yes" and "no", for the supported check
         # The text after the question doesn't depend on the knowledge, so a cache
         # built in another session can be queried without its instructions.
@@ -213,7 +222,7 @@ class NaiveCAG:
             offset += len(text) + len(_DOCUMENT_SEPARATOR)
         return located
 
-    def _render_prompt(self, context: str, prompt_instruction: str, answer_instruction: str):
+    def _render_prompt(self, context: str, prompt_instruction: str, answer_instruction: str, **template_kwargs):
         """
         Render the knowledge prompt with the model's chat template.
         Returns (prefix, suffix): the prefix ends where the question goes and is what gets
@@ -227,7 +236,7 @@ class NaiveCAG:
             f"{answer_instruction}\n\n"
             f"Question:\n{_QUESTION_PLACEHOLDER}"
         )
-        prompt = self._apply_chat_template(prompt_instruction, user_content)
+        prompt = self._apply_chat_template(prompt_instruction, user_content, **template_kwargs)
         prefix, suffix = prompt.rsplit(_QUESTION_PLACEHOLDER, 1)
         return prefix, suffix
 
@@ -457,7 +466,8 @@ class NaiveCAG:
         citations = [Citation(documents[i].name, documents[i].text, drop([documents[i]])) for i in candidates]
         if attention is None or not by_heads:
             citations = sorted((c for c in citations if c.score > 0), key=lambda c: c.score, reverse=True)
-        return CitedAnswer(response, citations[:top_k], self._supported(query, response, past_key_values))
+        return CitedAnswer(response, citations[:top_k], self._supported(query, response, past_key_values),
+                           self._confidence(query, response, past_key_values))
 
     @torch.no_grad()
     def _supported(self, query: str, response: str, past_key_values: KnowledgeCache) -> float:
@@ -480,6 +490,96 @@ class NaiveCAG:
             self._yes_no_ids = (sorted(yes - no), sorted(no - yes))
         yes, no = (probs[ids].sum() for ids in self._yes_no_ids)
         return (yes / (yes + no).clamp_min(1e-12)).item()
+
+    @torch.no_grad()
+    def _confidence(self, query: str, response: str, past_key_values: DynamicCache) -> Optional[float]:
+        """The answer check's probability that the response is right, or None without a check."""
+        if not self.answer_check:
+            return None
+        query_ids = self.tokenizer.encode(query.strip() + self._question_suffix, add_special_tokens=False)
+        answer_ids = self.tokenizer.encode(response.strip(), add_special_tokens=False)
+        if not answer_ids:
+            return None
+        origin_len = past_key_values.get_seq_length()
+        input_ids = torch.tensor([query_ids + answer_ids], device=self._input_device())
+        try:
+            hidden_states = self.model(input_ids=input_ids, past_key_values=past_key_values, use_cache=True,
+                                       output_hidden_states=True).hidden_states
+        finally:
+            _crop_to(past_key_values, origin_len)
+        check = self.answer_check
+        # The internal state at each layer of the check, averaged over the answer's tokens.
+        features = torch.stack([hidden_states[layer][0, len(query_ids):].float().mean(0).cpu() for layer in check["layers"]])
+        return torch.sigmoid((features * check["weight"]).sum() + check["bias"]).item()
+
+    def generate_checked_response(
+        self,
+        query: str,
+        past_key_values: DynamicCache,
+        threshold: Optional[float] = None,
+        max_new_tokens: int = 100,
+        max_thinking_tokens: int = 1024,
+    ) -> CheckedAnswer:
+        """
+        Answer fast, and answer again with thinking on only when the answer check isn't confident.
+        Thinking makes answers more accurate but much slower; this spends it where it helps. Needs an
+        answer check (see KNOWN_ANSWER_CHECKS) and a model that can think (e.g. Qwen3); otherwise the
+        fast answer is returned with rethought=False. The default threshold comes with the check; for
+        Qwen3-4B it sends about a quarter of HotpotQA-like questions to thinking. Raise it to think more
+        often, up to 1 for every question.
+        """
+        answer = self.generate_response(query, past_key_values, max_new_tokens=max_new_tokens).strip()
+        confidence = self._confidence(query, answer, past_key_values)
+        if threshold is None and self.answer_check:
+            threshold = self.answer_check["threshold"]
+        if confidence is None or confidence >= threshold:
+            return CheckedAnswer(answer, confidence, False)
+        thought = self._think_and_answer(query, past_key_values, max_thinking_tokens, max_new_tokens)
+        if thought is None:
+            return CheckedAnswer(answer, confidence, False)
+        return CheckedAnswer(thought, confidence, True)
+
+    @torch.no_grad()
+    def _think_and_answer(self, query: str, past_key_values: DynamicCache, max_thinking_tokens: int,
+                          max_new_tokens: int) -> Optional[str]:
+        """Answer with the chat template's thinking mode on; None if the model can't think."""
+        end_think = self.tokenizer.convert_tokens_to_ids("</think>")
+        suffix = self._render_prompt("", "", "", enable_thinking=True)[1]
+        if suffix == self._question_suffix or end_think in (None, self.tokenizer.unk_token_id):
+            return None
+        eos_token_ids = self._eos_token_ids()
+        device = self._input_device()
+        origin_len = past_key_values.get_seq_length()
+        newline = self.tokenizer.encode("\n", add_special_tokens=False)
+
+        def step(ids):
+            return self.model(input_ids=torch.tensor([ids], device=device), past_key_values=past_key_values,
+                              use_cache=True).logits[0, -1]
+
+        try:
+            pending, finished = self.tokenizer.encode(query.strip() + suffix, add_special_tokens=False), False
+            for _ in range(max_thinking_tokens):
+                # Sampled, as the Qwen3 authors recommend for thinking; greedy thinking can loop.
+                token = _next_token(step(pending)[None], 0.6, 0.95).item()
+                pending = []
+                if token == end_think:
+                    finished = True
+                    break
+                if token in eos_token_ids:
+                    break
+                pending = [token]
+            # Close the thinking, forced if it ran out of tokens, and read the answer greedily.
+            logits = step(pending + ([] if finished else newline) + [end_think] + newline + newline)
+            answer = []
+            for _ in range(max_new_tokens):
+                token = int(logits.argmax())
+                if token in eos_token_ids:
+                    break
+                answer.append(token)
+                logits = step([token])
+        finally:
+            _crop_to(past_key_values, origin_len)
+        return self.tokenizer.decode(answer, skip_special_tokens=True).strip()
 
     def calibrate_citations(
         self,
@@ -648,6 +748,25 @@ def _as_documents(loaded_data) -> list:
         # Saved caches load with weights_only=True, which only allows plain names.
         return [(name if isinstance(name, (int, str)) else str(name), text) for name, text in loaded_data.items()]
     return list(enumerate(loaded_data))
+
+
+def _load_answer_check(source) -> Optional[dict]:
+    """An answer check from a model name (its built-in check, if any), a path or a dict; None for False."""
+    if source is False:
+        return None
+    threshold = 0.5
+    if isinstance(source, str) and source in KNOWN_ANSWER_CHECKS:
+        filename, threshold = KNOWN_ANSWER_CHECKS[source]
+        with importlib.resources.as_file(importlib.resources.files(__package__).joinpath("answer_checks", filename)) as path:
+            source = torch.load(path, map_location="cpu", weights_only=True)
+    elif isinstance(source, (str, os.PathLike)):
+        if not os.path.exists(source):
+            return None  # a model name without a built-in check
+        source = torch.load(source, map_location="cpu", weights_only=True)
+    return {"layers": [int(layer) for layer in source["layers"]],
+            "weight": torch.as_tensor(source["weight"], dtype=torch.float32).cpu(),
+            "bias": float(source["bias"]),
+            "threshold": float(source.get("threshold", threshold))}
 
 
 def _first_word_tokens(tokenizer, words) -> set:

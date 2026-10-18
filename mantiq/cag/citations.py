@@ -36,10 +36,26 @@ class CitedAnswer:
     supported: the model's own judgment, from 0 to 1, that the knowledge states the answer. Low
     means the answer doesn't come from the knowledge. It doesn't catch a wrong answer that some
     other part of the knowledge does state.
+    confidence: from 0 to 1, how likely the answer is right, read from the model's internal state by
+    its answer check (see KNOWN_ANSWER_CHECKS). It also catches wrong answers that the knowledge
+    does state. None for models without an answer check.
     """
     answer: str
     citations: List[Citation] = field(default_factory=list)
     supported: float = 0.0
+    confidence: Optional[float] = None
+
+
+@dataclass
+class CheckedAnswer:
+    """
+    An answer from generate_checked_response().
+    confidence: the answer check's confidence in the first, fast answer (None without a check).
+    rethought: whether that confidence was low and the answer was given again with thinking on.
+    """
+    answer: str
+    confidence: Optional[float] = None
+    rethought: bool = False
 
 
 class KnowledgeCache(DynamicCache):
@@ -71,6 +87,17 @@ KNOWN_CITATION_HEADS = {
     "meta-llama/Llama-3.1-8B-Instruct": [(26, 15), (8, 11), (16, 20), (8, 1), (16, 27), (16, 26), (14, 19), (27, 6)],
     "microsoft/Phi-4-mini-instruct": [(19, 14), (21, 22), (21, 1), (19, 16), (17, 4), (19, 5), (16, 18), (19, 9)],
     "mistralai/Mistral-7B-Instruct-v0.3": [(14, 24), (17, 26), (18, 21), (19, 9), (15, 8), (18, 0), (19, 16), (15, 1)],
+}
+
+# Answer checks: a linear read-out of the model's internal state, averaged over the answer, that says
+# how likely the answer is right. Trained on 2,000 HotpotQA questions without reference answers, to
+# predict whether a better answer agrees: Qwen3-4B's own answer with thinking on (for Qwen3-4B and, as
+# its own thinking teaches it little, for Qwen3-1.7B). Files in mantiq/cag/answer_checks/, with the
+# confidence below which generate_checked_response() thinks again: it flags about as many training
+# questions as the teacher disagrees on.
+KNOWN_ANSWER_CHECKS = {
+    "Qwen/Qwen3-4B": ("qwen3-4b.pt", 0.75),
+    "Qwen/Qwen3-1.7B": ("qwen3-1.7b.pt", 0.58),
 }
 
 
