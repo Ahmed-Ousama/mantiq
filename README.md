@@ -6,6 +6,7 @@
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
 [![license](https://img.shields.io/badge/license-MIT-green)](https://github.com/Ahmed-Ousama/mantiq/blob/main/LICENSE)
 [![paper](https://img.shields.io/badge/paper-PDF-b31b1b)](https://github.com/Ahmed-Ousama/mantiq/releases/download/v0.2.0/mantiq-paper.pdf)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Ahmed-Ousama/mantiq/blob/main/examples/mantiq-demo.ipynb)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Ahmed-Ousama/mantiq/main/images/mantiq-dark.svg">
@@ -96,7 +97,7 @@ print(cag.generate_response("How long does delivery take?", kv_cache))
 # Delivery takes 2-4 business days.
 ```
 
-The full script is in [`examples/quickstart.py`](https://github.com/Ahmed-Ousama/mantiq/blob/main/examples/quickstart.py).
+The full script is in [`examples/quickstart.py`](https://github.com/Ahmed-Ousama/mantiq/blob/main/examples/quickstart.py). To try citations, answer checks, conversations and updates in the browser on a free GPU, open the [Colab notebook](https://colab.research.google.com/github/Ahmed-Ousama/mantiq/blob/main/examples/mantiq-demo.ipynb).
 
 ## Usage
 

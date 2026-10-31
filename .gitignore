@@ -6,3 +6,5 @@ dist/
 paper/*.pdf
 paper/arxiv/
 paper/*.tar.gz
+config.bat
+node_modules
