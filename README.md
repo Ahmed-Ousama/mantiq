@@ -241,6 +241,29 @@ kv_cache, seconds = cag.update_kvcache(kv_cache, documents)
 
 The result is the same as a new cache, but mantiq only re-reads the knowledge from the first change onward. Put the documents that change most often (prices, stock, offers) last, and an update costs a fraction of a rebuild: in [`examples/live_updates.py`](examples/live_updates.py), changing this week's offer at the end of a 964-token catalog takes 0.3 s instead of 11.8 s on a laptop CPU. It also works on a cache loaded with `read_kv_cache`, and takes `saving_path` to save the result.
 
+### Conversations
+
+By default each question is answered on its own. For a chat, where a follow-up like "and how much is it?" needs the earlier turns, start a conversation:
+
+```python
+chat = cag.chat(kv_cache)
+chat.ask("Do you have a 4K TV?")
+chat.ask("How much is it?")  # knows "it" is the TV
+for chunk in chat.stream("Does it come with a warranty?"):
+    print(chunk, end="", flush=True)
+```
+
+The knowledge cache is shared, not copied: a conversation keeps only its own part of the cache and puts it back for the next question, so a follow-up reads only what is new, and many conversations (one per user, say) can run on one cache, one question at a time. (Models with sliding-window attention, like Gemma 3, read the whole conversation again for each question.) When a conversation outgrows the context window, its oldest turns make way; `max_turns` keeps fewer.
+
+`chat.history` is the conversation as plain data, `[{"question": ..., "answer": ...}, ...]`. Save it anywhere and resume later, in another process or after a restart, with `cag.chat(kv_cache, history=saved)`. `chat.reset()` starts over.
+
+For memory that outlives a conversation, such as what a customer prefers, keep it as a document at the end of the knowledge and update the cache when it changes: only that document is read again.
+
+```python
+documents["memory.md"] = "The customer prefers answers in Arabic and lives in Cairo."
+kv_cache, _ = cag.update_kvcache(kv_cache, documents)
+```
+
 ### Streaming and sampling
 
 ```python
@@ -288,13 +311,12 @@ cag = NaiveCAG(
 
 ## Limitations
 
-- One question at a time per cache, and each question is answered on its own, without conversation history.
+- One question at a time per cache, whether from `generate_response` or from conversations.
 - Supports models with standard attention caches (e.g. Llama, Qwen3). Hybrid linear-attention models are not supported.
 
 ## Roadmap
 
 - Lighter document loaders without LangChain, since `langchain-community` is no longer maintained.
-- Multi-turn conversations on top of the cached knowledge.
 - Answering several questions at once from one cache.
 - Built-in citation heads for more models.
 - Answer checks for more models, and a way to train one for any model.

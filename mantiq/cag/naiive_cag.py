@@ -12,6 +12,7 @@ import torch
 from jinja2.exceptions import TemplateError
 from transformers.cache_utils import DynamicCache
 from ..cag.utils import load_model, GenericDatasetProcessor, DatasetParser
+from .conversation import Conversation
 from .citations import (
     COLLECTING_ATTENTION,
     KNOWN_ANSWER_CHECKS,
@@ -228,33 +229,45 @@ class NaiveCAG:
         Returns (prefix, suffix): the prefix ends where the question goes and is what gets
         cached; the suffix closes the user turn and opens the assistant turn.
         """
-        user_content = (
-            "Context:\n"
-            "------------------------------------------------\n"
-            f"{context}\n"
-            "------------------------------------------------\n\n"
-            f"{answer_instruction}\n\n"
-            f"Question:\n{_QUESTION_PLACEHOLDER}"
-        )
-        prompt = self._apply_chat_template(prompt_instruction, user_content, **template_kwargs)
+        prompt = self._apply_chat_template(prompt_instruction, _user_content(context, answer_instruction), **template_kwargs)
         prefix, suffix = prompt.rsplit(_QUESTION_PLACEHOLDER, 1)
         return prefix, suffix
+
+    def _conversation_text(self, turns: list, question: str) -> str:
+        """
+        What follows the cached knowledge when the question comes after earlier (question, answer)
+        turns: the first question, each answer and later question, then the new question and the
+        opening of the assistant's turn. With no turns, the same as for a single question.
+        """
+        question = question.strip()
+        if not turns:
+            return question + self._question_suffix
+        if self.tokenizer.chat_template is None:
+            text = turns[0][0] + "\n\nAnswer:\n" + turns[0][1]
+            for earlier, answer in turns[1:]:
+                text += "\n\nQuestion:\n" + earlier + "\n\nAnswer:\n" + answer
+            return text + "\n\nQuestion:\n" + question + self._question_suffix
+        messages = [{"role": "user", "content": _user_content("", "") + turns[0][0]}, {"role": "assistant", "content": turns[0][1]}]
+        for earlier, answer in turns[1:]:
+            messages += [{"role": "user", "content": earlier}, {"role": "assistant", "content": answer}]
+        messages.append({"role": "user", "content": question})
+        return self._render_messages("", messages).rsplit(_QUESTION_PLACEHOLDER, 1)[1]
 
     def _apply_chat_template(self, system: str, user: str, **template_kwargs) -> str:
         if self.tokenizer.chat_template is None:
             return f"{system}\n\n{user}\n\nAnswer:\n"
+        return self._render_messages(system, [{"role": "user", "content": user}], **template_kwargs)
+
+    def _render_messages(self, system: str, messages: list, **template_kwargs) -> str:
         template_kwargs = {**self.chat_template_kwargs, **template_kwargs}
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         try:
             return self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, **template_kwargs
+                [{"role": "system", "content": system}] + messages, tokenize=False, add_generation_prompt=True, **template_kwargs
             )
         except TemplateError:
-            # Some templates (e.g. Gemma) reject the system role; fold it into the user turn.
-            messages = [{"role": "user", "content": f"{system}\n\n{user}"}]
-            return self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, **template_kwargs
-            )
+            # Some templates (e.g. Gemma) reject the system role; fold it into the first user turn.
+            messages = [{**messages[0], "content": f"{system}\n\n{messages[0]['content']}"}] + messages[1:]
+            return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, **template_kwargs)
 
     def preprocess_knowledge(self, prompt: str) -> KnowledgeCache:
         """
@@ -381,27 +394,49 @@ class NaiveCAG:
         The cache is restored when the stream ends or is closed, so finish or close it
         before sending the next query.
         """
-        token_ids = []
+        yield from self._stream_text(self._generate_tokens(query, past_key_values, max_new_tokens, temperature, top_p))
+
+    def _stream_text(self, token_ids: Iterator[int]) -> Iterator[str]:
+        """Decode generated tokens into text pieces as they arrive."""
+        seen = []
         sent = ""
-        for token_id in self._generate_tokens(query, past_key_values, max_new_tokens, temperature, top_p):
-            token_ids.append(token_id)
-            text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
+        for token_id in token_ids:
+            seen.append(token_id)
+            text = self.tokenizer.decode(seen, skip_special_tokens=True)
             # Hold back a multi-byte character until all of its tokens have arrived.
-            if len(text) > len(sent) and not text.endswith("�"):
+            if len(text) > len(sent) and not text.endswith("\ufffd"):
                 yield text[len(sent):]
                 sent = text
-        text = self.tokenizer.decode(token_ids, skip_special_tokens=True)
+        text = self.tokenizer.decode(seen, skip_special_tokens=True)
         if len(text) > len(sent):
             yield text[len(sent):]
 
-    @torch.no_grad()
+    def chat(self, past_key_values: KnowledgeCache, history: Optional[list] = None, max_turns: Optional[int] = None) -> Conversation:
+        """
+        Start a conversation over the cached knowledge: each question sees the earlier questions
+        and answers. The knowledge cache is shared, not copied, so many conversations can use one
+        cache, one question at a time. history resumes a saved conversation (Conversation.history);
+        max_turns keeps only the latest turns in view.
+        """
+        return Conversation(self, past_key_values, history=history, max_turns=max_turns)
+
     def _generate_tokens(
         self, input_query: str, past_key_values: DynamicCache, max_new_tokens: int, temperature: float, top_p: float
     ) -> Iterator[int]:
+        input_ids = self.tokenizer.encode(input_query.strip() + self._question_suffix, add_special_tokens=False)
+        return self._generate_from_ids(input_ids, past_key_values, max_new_tokens, temperature, top_p)
+
+    @torch.no_grad()
+    def _generate_from_ids(
+        self, input_ids: list, past_key_values: DynamicCache, max_new_tokens: int, temperature: float, top_p: float,
+        before_crop=None,
+    ) -> Iterator[int]:
+        """
+        Feed input_ids on top of the cache and yield the generated tokens. The cache is cropped back
+        afterwards; before_crop(cache), if given, sees it with the input and the answer still in it.
+        """
         device = self._input_device()
-        input_ids = self.tokenizer.encode(
-            input_query.strip() + self._question_suffix, add_special_tokens=False, return_tensors="pt"
-        ).to(device)
+        input_ids = torch.tensor([input_ids], dtype=torch.long, device=device)
         eos_token_ids = self._eos_token_ids()
         origin_len = past_key_values.get_seq_length()
 
@@ -421,6 +456,8 @@ class NaiveCAG:
                 if token_id in eos_token_ids:
                     break
         finally:
+            if before_crop is not None:
+                before_crop(past_key_values)
             # Drop the query and answer so the next query only sees the knowledge.
             _crop_to(past_key_values, origin_len)
 
@@ -748,6 +785,18 @@ def _as_documents(loaded_data) -> list:
         # Saved caches load with weights_only=True, which only allows plain names.
         return [(name if isinstance(name, (int, str)) else str(name), text) for name, text in loaded_data.items()]
     return list(enumerate(loaded_data))
+
+
+def _user_content(context: str, answer_instruction: str) -> str:
+    """The first user turn, ending where the question goes."""
+    return (
+        "Context:\n"
+        "------------------------------------------------\n"
+        f"{context}\n"
+        "------------------------------------------------\n\n"
+        f"{answer_instruction}\n\n"
+        f"Question:\n{_QUESTION_PLACEHOLDER}"
+    )
 
 
 def _load_answer_check(source) -> Optional[dict]:
