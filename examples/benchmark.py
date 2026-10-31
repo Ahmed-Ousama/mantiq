@@ -4,6 +4,7 @@ knowledge for every question, which is what putting it in the prompt costs.
     python examples/benchmark.py --model Qwen/Qwen3-0.6B --products 80
 """
 
+import utils.session
 import argparse
 import platform
 import time
