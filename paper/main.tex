@@ -23,7 +23,7 @@
 \newcommand{\best}[1]{\textbf{#1}}
 \newcommand{\loo}{\textsc{loo}}
 
-\title{Citation Heads: Self-Calibrated Source Attribution\\for Cache-Augmented Generation}
+\title{Expensive Signals Teach Cheap Ones:\\Citations and Answer Checks for Cache-Augmented Generation}
 \author{Ahmed Ousama\\\texttt{contact.ahmedousama@gmail.com}}
 \date{}
 
@@ -42,6 +42,8 @@ Retrieval-augmented generation (RAG) retrieves a few chunks of a knowledge base 
 What CAG gives up is provenance. A RAG system can at least show the chunks it retrieved; a CAG answer is conditioned on everything at once, so it does not say which document it comes from, nor whether it comes from the knowledge at all. Context attribution methods recover this, but at a cost. Leave-one-out ablation and its sparse variants run the model again with parts of the context removed, once per document or per random ablation~\citep{cohenwang2024contextcite,liu2025attribot}. AT2~\citep{cohenwang2025at2} replaces these runs with a learned combination of attention heads, but the weights are trained per model on ablation data from thousands of examples, so it only covers models for which someone has trained an estimator.
 
 We observe that a KV cache already holds what attribution needs. First, documents can be hidden from a cached prefix through the attention mask, so a leave-one-out score needs one forward pass over the question and answer per document, with nothing re-encoded. Second, this cheap but noisy signal is enough to find, without any labels, a handful of attention heads that point at the source of an answer. We call them \emph{citation heads}. The model writes about 20 questions about its own knowledge, answers each one from the cache, and we keep the heads whose most-attended document most often agrees with the leave-one-out winner. At inference, these heads rank the documents in a single pass, however many documents there are.
+
+The same pattern, an expensive signal teaching a cheap one without labels, also tells when an answer is wrong. Most wrong answers come from the knowledge itself, so asking whether the knowledge states the answer cannot catch them; but when the model answers again with thinking on, its two answers usually agree only if the first was right. A linear read-out of the model's internal state, trained to predict that agreement, flags wrong answers in one pass and decides when thinking is worth its cost.
 
 Our contributions are:
 \begin{itemize}
