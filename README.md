@@ -5,10 +5,11 @@
 [![tests](https://github.com/Ahmed-Ousama/mantiq/actions/workflows/tests.yml/badge.svg)](https://github.com/Ahmed-Ousama/mantiq/actions/workflows/tests.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
 [![license](https://img.shields.io/badge/license-MIT-green)](https://github.com/Ahmed-Ousama/mantiq/blob/main/LICENSE)
+[![paper](https://img.shields.io/badge/paper-PDF-b31b1b)](https://github.com/Ahmed-Ousama/mantiq/releases/download/v0.2.0/mantiq-paper.pdf)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/mantiq-dark.svg">
-  <img alt="mantiq reads the documents into a KV cache once, answers a question and cites the document the answer comes from, then re-reads only the document that changed" src="images/mantiq.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Ahmed-Ousama/mantiq/main/images/mantiq-dark.svg">
+  <img alt="mantiq reads the documents into a KV cache once, answers a question and cites the document the answer comes from, then re-reads only the document that changed" src="https://raw.githubusercontent.com/Ahmed-Ousama/mantiq/main/images/mantiq.svg">
 </picture>
 
 ```python
@@ -95,7 +96,7 @@ print(cag.generate_response("How long does delivery take?", kv_cache))
 # Delivery takes 2-4 business days.
 ```
 
-The full script is in [`examples/quickstart.py`](examples/quickstart.py).
+The full script is in [`examples/quickstart.py`](https://github.com/Ahmed-Ousama/mantiq/blob/main/examples/quickstart.py).
 
 ## Usage
 
@@ -239,7 +240,7 @@ documents["prices.md"] = "The Vision 55 TV now costs $449."
 kv_cache, seconds = cag.update_kvcache(kv_cache, documents)
 ```
 
-The result is the same as a new cache, but mantiq only re-reads the knowledge from the first change onward. Put the documents that change most often (prices, stock, offers) last, and an update costs a fraction of a rebuild: in [`examples/live_updates.py`](examples/live_updates.py), changing this week's offer at the end of a 964-token catalog takes 0.3 s instead of 11.8 s on a laptop CPU. It also works on a cache loaded with `read_kv_cache`, and takes `saving_path` to save the result.
+The result is the same as a new cache, but mantiq only re-reads the knowledge from the first change onward. Put the documents that change most often (prices, stock, offers) last, and an update costs a fraction of a rebuild: in [`examples/live_updates.py`](https://github.com/Ahmed-Ousama/mantiq/blob/main/examples/live_updates.py), changing this week's offer at the end of a 964-token catalog takes 0.3 s instead of 11.8 s on a laptop CPU. It also works on a cache loaded with `read_kv_cache`, and takes `saving_path` to save the result.
 
 ### Conversations
 
@@ -336,11 +337,22 @@ pip install -e ".[loaders,test]"
 pytest
 ```
 
-The tests use tiny models built on the fly, so they need no downloads and no GPU. See [`CHANGELOG.md`](CHANGELOG.md) for what changed in each release.
+The tests use tiny models built on the fly, so they need no downloads and no GPU. See [`CHANGELOG.md`](https://github.com/Ahmed-Ousama/mantiq/blob/main/CHANGELOG.md) for what changed in each release.
 
 ## Citation
 
-If you use mantiq in your research, please cite the paper it builds on:
+If you use mantiq's citations or answer checks in your research, please cite the paper that describes them ([PDF](https://github.com/Ahmed-Ousama/mantiq/releases/download/v0.2.0/mantiq-paper.pdf); on arXiv soon):
+
+```bibtex
+@misc{ousama2026expensive,
+  title  = {Expensive Signals Teach Cheap Ones: Citations and Answer Checks for Cache-Augmented Generation},
+  author = {Ousama, Ahmed},
+  year   = {2026},
+  url    = {https://github.com/Ahmed-Ousama/mantiq}
+}
+```
+
+and the paper mantiq builds on:
 
 ```bibtex
 @article{chan2024dontdorag,

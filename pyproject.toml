@@ -48,7 +48,7 @@ Homepage = "https://github.com/Ahmed-Ousama/mantiq"
 Repository = "https://github.com/Ahmed-Ousama/mantiq"
 Issues = "https://github.com/Ahmed-Ousama/mantiq/issues"
 Changelog = "https://github.com/Ahmed-Ousama/mantiq/blob/main/CHANGELOG.md"
-Paper = "https://arxiv.org/abs/2412.15605"
+Paper = "https://github.com/Ahmed-Ousama/mantiq/releases/download/v0.2.0/mantiq-paper.pdf"
 
 [tool.setuptools.packages.find]
 include = ["mantiq*"]
