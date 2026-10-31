@@ -4,3 +4,5 @@ build/
 dist/
 .pytest_cache/
 paper/*.pdf
+paper/arxiv/
+paper/*.tar.gz
