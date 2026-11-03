@@ -16,6 +16,7 @@ from .conversation import Conversation
 from .citations import (
     COLLECTING_ATTENTION,
     KNOWN_ANSWER_CHECKS,
+    KNOWN_ANSWERABLE_CHECKS,
     KNOWN_CITATION_HEADS,
     AttentionCollector,
     CheckedAnswer,
@@ -48,6 +49,7 @@ class NaiveCAG:
         model_kwargs: Optional[dict] = None,
         citation_heads: Optional[list] = None,
         answer_check: Union[None, bool, str, dict] = None,
+        answerable_check: Union[None, bool, str, dict] = None,
     ):
         """
         Initialize NaiveCAG.
@@ -69,6 +71,10 @@ class NaiveCAG:
                 Defaults to the built-in check for some models (KNOWN_ANSWER_CHECKS); False turns it
                 off. A path or a dict with "layers", "weight" ([layers, hidden size]), "bias" and
                 optionally "threshold" (default 0.5) sets one.
+            answerable_check: How likely the knowledge answers a question, read from the model's internal
+                state, for the fallback of generate_checked_response(). Defaults to the built-in check for
+                some models (KNOWN_ANSWERABLE_CHECKS); without one, the model is asked. False turns it off,
+                and a path or a dict sets one, like answer_check, with optionally "unsure" as well.
         """
         self.model_name = model_name
         self.model, self.tokenizer = load_model(model_name, hf_token, quantized, trust_remote_code, model_kwargs)
@@ -79,6 +85,8 @@ class NaiveCAG:
             citation_heads = KNOWN_CITATION_HEADS.get(model_name)
         self.citation_heads = [tuple(head) for head in citation_heads] if citation_heads else None
         self.answer_check = _load_answer_check(model_name if answer_check is None else answer_check)
+        self.answerable_check = _load_answer_check(model_name if answerable_check is None else answerable_check,
+                                                   KNOWN_ANSWERABLE_CHECKS)
         self._yes_no_ids = None  # token ids that start "yes" and "no", for the supported check
         # The text after the question doesn't depend on the knowledge, so a cache
         # built in another session can be queried without its instructions.
@@ -506,13 +514,52 @@ class NaiveCAG:
         return CitedAnswer(response, citations[:top_k], self._supported(query, response, past_key_values),
                            self._confidence(query, response, past_key_values))
 
-    @torch.no_grad()
     def _supported(self, query: str, response: str, past_key_values: KnowledgeCache) -> float:
         """The model's probability that the knowledge states the response, asked as a follow-up question."""
         check = (
             f"{query.strip()}\n\nProposed answer: {response.strip()}\n\n"
             "Is the proposed answer stated in the context? Reply with yes or no."
         )
+        return self._yes_probability(check, past_key_values)
+
+    @torch.no_grad()
+    def _answerable(self, query: str, past_key_values: KnowledgeCache) -> float:
+        """
+        How likely the knowledge answers the query, before answering it: read from the model's internal
+        state by the answerable check, or else the model's probability of saying so.
+        """
+        ask = (
+            f"Question: {query.strip()}\n\n"
+            "Is the answer to this question in the context, or can it be worked out from it? Reply with yes or no."
+        )
+        check = self.answerable_check
+        if not check:
+            return self._yes_probability(ask, past_key_values)
+        input_ids = self.tokenizer.encode(ask + self._question_suffix, add_special_tokens=False, return_tensors="pt")
+        origin_len = past_key_values.get_seq_length()
+        try:
+            hidden_states = self.model(input_ids=input_ids.to(self._input_device()), past_key_values=past_key_values,
+                                       use_cache=True, output_hidden_states=True).hidden_states
+        finally:
+            _crop_to(past_key_values, origin_len)
+        # The internal state at each layer of the check, where the model is about to reply.
+        features = torch.stack([hidden_states[layer][0, -1].float().cpu() for layer in check["layers"]])
+        return torch.sigmoid((features * check["weight"]).sum() + check["bias"]).item()
+
+    def _unsure_of_question(self, query: str, past_key_values: KnowledgeCache, answerable: float) -> bool:
+        """Whether a question that wasn't declined still needs its answer checked against the knowledge."""
+        if self.answerable_check:
+            return answerable < self.answerable_check["unsure"]
+        ask = (
+            f"Question: {query.strip()}\n\n"
+            "Does the context state the specific fact this question asks for? Reply no if the context only has "
+            "related facts. Reply with yes or no."
+        )
+        return self._yes_probability(ask, past_key_values) < 0.5
+
+    @torch.no_grad()
+    def _yes_probability(self, check: str, past_key_values: KnowledgeCache) -> float:
+        """The model's probability of replying yes rather than no to a question about the knowledge."""
         input_ids = self.tokenizer.encode(check + self._question_suffix, add_special_tokens=False, return_tensors="pt")
         origin_len = past_key_values.get_seq_length()
         try:
@@ -556,6 +603,8 @@ class NaiveCAG:
         threshold: Optional[float] = None,
         max_new_tokens: int = 100,
         max_thinking_tokens: int = 1024,
+        fallback: Optional[str] = None,
+        min_answerable: Optional[float] = None,
     ) -> CheckedAnswer:
         """
         Answer fast, and answer again with thinking on only when the answer check isn't confident.
@@ -564,17 +613,37 @@ class NaiveCAG:
         fast answer is returned with rethought=False. The default threshold comes with the check; for
         Qwen3-4B it sends about a quarter of HotpotQA-like questions to thinking. Raise it to think more
         often, up to 1 for every question.
+        With a fallback, such as "I'm not sure, let me pass you to a colleague.", questions the knowledge
+        doesn't answer go to a person: when it clearly doesn't (answerable below min_answerable), the
+        fallback is returned right away, without answering, with declined=True. When that isn't clear,
+        the model answers, and the fallback is returned if the knowledge doesn't state the answer; the
+        answer is then kept in draft. Raise min_answerable to decline more (see KNOWN_ANSWERABLE_CHECKS
+        for its default; 0.5 without a check). This works with any model, and better with an answerable
+        check. With an answer check, the fallback is also returned when the check isn't confident and
+        the model can't think again.
         """
+        answerable, unsure = None, False
+        if fallback is not None:
+            answerable = self._answerable(query, past_key_values)
+            if min_answerable is None:
+                min_answerable = self.answerable_check["threshold"] if self.answerable_check else 0.5
+            if answerable < min_answerable:
+                return CheckedAnswer(fallback, answerable=answerable, declined=True)
+            unsure = self._unsure_of_question(query, past_key_values, answerable)
         answer = self.generate_response(query, past_key_values, max_new_tokens=max_new_tokens).strip()
+        if unsure and self._supported(query, answer, past_key_values) < 0.5:
+            return CheckedAnswer(fallback, answerable=answerable, declined=True, draft=answer)
         confidence = self._confidence(query, answer, past_key_values)
         if threshold is None and self.answer_check:
             threshold = self.answer_check["threshold"]
         if confidence is None or confidence >= threshold:
-            return CheckedAnswer(answer, confidence, False)
+            return CheckedAnswer(answer, confidence, False, answerable)
         thought = self._think_and_answer(query, past_key_values, max_thinking_tokens, max_new_tokens)
-        if thought is None:
-            return CheckedAnswer(answer, confidence, False)
-        return CheckedAnswer(thought, confidence, True)
+        if thought is not None:
+            return CheckedAnswer(thought, confidence, True, answerable)
+        if fallback is not None:
+            return CheckedAnswer(fallback, confidence, False, answerable, declined=True, draft=answer)
+        return CheckedAnswer(answer, confidence, False)
 
     @torch.no_grad()
     def _think_and_answer(self, query: str, past_key_values: DynamicCache, max_thinking_tokens: int,
@@ -799,13 +868,14 @@ def _user_content(context: str, answer_instruction: str) -> str:
     )
 
 
-def _load_answer_check(source) -> Optional[dict]:
-    """An answer check from a model name (its built-in check, if any), a path or a dict; None for False."""
+def _load_answer_check(source, known: Mapping = KNOWN_ANSWER_CHECKS) -> Optional[dict]:
+    """A linear check from a model name (its built-in check, if any), a path or a dict; None for False."""
     if source is False:
         return None
-    threshold = 0.5
-    if isinstance(source, str) and source in KNOWN_ANSWER_CHECKS:
-        filename, threshold = KNOWN_ANSWER_CHECKS[source]
+    threshold, unsure = 0.5, None
+    if isinstance(source, str) and source in known:
+        filename, threshold, *rest = known[source]
+        unsure = rest[0] if rest else None
         with importlib.resources.as_file(importlib.resources.files(__package__).joinpath("answer_checks", filename)) as path:
             source = torch.load(path, map_location="cpu", weights_only=True)
     elif isinstance(source, (str, os.PathLike)):
@@ -815,7 +885,8 @@ def _load_answer_check(source) -> Optional[dict]:
     return {"layers": [int(layer) for layer in source["layers"]],
             "weight": torch.as_tensor(source["weight"], dtype=torch.float32).cpu(),
             "bias": float(source["bias"]),
-            "threshold": float(source.get("threshold", threshold))}
+            "threshold": float(source.get("threshold", threshold)),
+            "unsure": float(source.get("unsure", unsure if unsure is not None else threshold))}
 
 
 def _first_word_tokens(tokenizer, words) -> set:

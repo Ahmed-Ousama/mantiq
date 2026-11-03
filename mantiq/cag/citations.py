@@ -52,10 +52,16 @@ class CheckedAnswer:
     An answer from generate_checked_response().
     confidence: the answer check's confidence in the first, fast answer (None without a check).
     rethought: whether that confidence was low and the answer was given again with thinking on.
+    answerable: with a fallback, from 0 to 1, how likely the knowledge answers the question; else None.
+    declined: whether the fallback was returned instead of an answer.
+    draft: the model's own answer when it was declined after answering (None if it didn't answer).
     """
     answer: str
     confidence: Optional[float] = None
     rethought: bool = False
+    answerable: Optional[float] = None
+    declined: bool = False
+    draft: Optional[str] = None
 
 
 class KnowledgeCache(DynamicCache):
@@ -98,6 +104,15 @@ KNOWN_CITATION_HEADS = {
 KNOWN_ANSWER_CHECKS = {
     "Qwen/Qwen3-4B": ("qwen3-4b.pt", 0.75),
     "Qwen/Qwen3-1.7B": ("qwen3-1.7b.pt", 0.58),
+}
+
+# Linear checks on the model's internal state at the end of the question "is the answer in the
+# context?", trained on questions labeled by whether the knowledge answers them: SQuAD 2.0, DROP,
+# HotpotQA and MuSiQue, and hand-written customer service questions. Each entry has the file, the
+# score below which generate_checked_response() declines without answering, and the score below
+# which it answers, then declines if the knowledge doesn't state the answer.
+KNOWN_ANSWERABLE_CHECKS = {
+    "Qwen/Qwen3-4B": ("qwen3-4b-answerable.pt", 0.1, 0.3),
 }
 
 
