@@ -49,7 +49,7 @@ Six businesses (a bank, a project management app, an airline, a hotel, an online
 
 Seeing every document, mantiq answers 92% of the answerable questions right, against 86% for RAG. With checks, the wrong or made-up answers that reach customers drop from about 1 in 4 to 1 in 14: 89% of the questions the documents don't answer go to a person instead of getting a made-up answer, and only 1% of the answerable ones do. The same checks make a RAG pipeline safer too, at the cost of handing off 6% of the answerable questions.
 
-<sub>240 questions (144 answerable, 96 not), written and committed before any system was run on them; the businesses and questions are in <code>examples/business_bench</code>. Qwen3-4B in 4-bit on a Kaggle T4. Answers were judged by Qwen3-14B against reference answers; on a fresh sample, it agreed with the author's own judgment on 29 of 32 answers. With Qwen3-4B, a quarter to a third of Egyptian Arabic answers were wrong whatever the method; Qwen3-8B does much better there. Reproduce with <code>python examples/business_benchmark.py answers.jsonl</code>.</sub>
+<sub>240 questions (144 answerable, 96 not), written and committed before any system was run on them; the businesses and questions are in <code>examples/business_bench</code>. Qwen3-4B in 4-bit on a Kaggle T4. Answers were judged by Qwen3-14B against reference answers; on a fresh sample checked by hand, it agreed on 29 of 32 answers. With Qwen3-4B, a quarter to a third of Egyptian Arabic answers were wrong whatever the method; Qwen3-8B does much better there. Reproduce with <code>python examples/business_benchmark.py answers.jsonl</code>.</sub>
 
 ### Speed
 
