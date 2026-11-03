@@ -34,6 +34,24 @@ RAG retrieves a few chunks for every question. That means embeddings, a vector s
 - **No retrieval misses.** Every answer sees all of the knowledge, not just the top-k chunks.
 - **Read once, reuse anywhere.** Save the cache to disk and load it in another process or after a restart.
 - **Knows its sources and stays current.** `cite()` points to the documents an answer comes from (its top citation is a supporting paragraph 93% of the time on HotpotQA with Qwen3-4B), and `update_kvcache()` re-reads only what changed.
+- **Hands off what the knowledge doesn't answer.** With a `fallback`, a question your documents don't cover gets your fallback message instead of a made-up answer, and is marked for a person.
+
+### In front of customers
+
+Six businesses (a bank, a project management app, an airline, a hotel, an online clothing store and a car insurer), each with a page of documents and 40 customer questions: 24 that the documents answer and 16 that they don't. Out of every 100 questions, with the same small model on a free GPU:
+
+| | right answers | wrong or made-up answers | handed to a person | "I don't know" | first word |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| RAG (top 3 sections, bge-m3 embeddings) | 51.7 | 24.6 | 0 | 23.8 | 0.38 s |
+| mantiq | **55.4** | 20.0 | 0 | 24.6 | **0.14 s** |
+| **mantiq with checks and a fallback** | 54.6 | **7.1** | 35.8 | 2.5 | |
+| RAG with mantiq's checks and a fallback | 52.5 | **3.8** | 41.2 | 2.5 | |
+
+Seeing every document, mantiq answers 92% of the answerable questions right, against 86% for RAG. With checks, the wrong or made-up answers that reach customers drop from about 1 in 4 to 1 in 14: 89% of the questions the documents don't answer go to a person instead of getting a made-up answer, and only 1% of the answerable ones do. The same checks make a RAG pipeline safer too, at the cost of handing off 6% of the answerable questions.
+
+<sub>240 questions (144 answerable, 96 not), written and committed before any system was run on them; the businesses and questions are in <code>examples/business_bench</code>. Qwen3-4B in 4-bit on a Kaggle T4. Answers were judged by Qwen3-14B against reference answers; on a fresh sample, it agreed with the author's own judgment on 29 of 32 answers. With Qwen3-4B, a quarter to a third of Egyptian Arabic answers were wrong whatever the method; Qwen3-8B does much better there. Reproduce with <code>python examples/business_benchmark.py answers.jsonl</code>.</sub>
+
+### Speed
 
 Answering 5 questions about a 2,355-token product catalog:
 
@@ -97,7 +115,7 @@ print(cag.generate_response("How long does delivery take?", kv_cache))
 # Delivery takes 2-4 business days.
 ```
 
-The full script is in [`examples/quickstart.py`](https://github.com/Ahmed-Ousama/mantiq/blob/main/examples/quickstart.py). To try citations, answer checks, conversations and updates in the browser on a free GPU, open the [Colab notebook](https://colab.research.google.com/github/Ahmed-Ousama/mantiq/blob/main/examples/mantiq-demo.ipynb).
+The full script is in [`examples/quickstart.py`](https://github.com/Ahmed-Ousama/mantiq/blob/main/examples/quickstart.py). To try citations, answer checks, the fallback, a comparison with RAG, conversations and updates in the browser on a free GPU, open the [Colab notebook](https://colab.research.google.com/github/Ahmed-Ousama/mantiq/blob/main/examples/mantiq-demo.ipynb).
 
 ## Usage
 
@@ -232,6 +250,39 @@ checked.answer, checked.confidence, checked.rethought
 
 With the default threshold, Qwen3-4B thinks again on 31% of HotpotQA questions and goes from 67.3% to 77.7% correct, against 82.2% when thinking on every question; on SQuAD it thinks on 10% and goes from 90.0% to 91.7% (93.3% always thinking). Raise the threshold to think more often. Qwen3-1.7B gains little from its own thinking (58.7% to 60.3% on HotpotQA), so for it `confidence` is better used to flag answers or decline to answer.
 
+### Questions the knowledge doesn't answer
+
+A support agent shouldn't make things up. Give `generate_checked_response()` a `fallback`, and questions the knowledge doesn't answer go to a person instead:
+
+```python
+checked = cag.generate_checked_response(question, kv_cache, fallback="I'm not sure, let me pass you to a colleague.")
+if checked.declined:
+    hand_to_a_person(question)  # checked.answer is the fallback
+else:
+    send(checked.answer)
+```
+
+It works in two steps. First, a linear check reads the model's internal state as it reads the question, in one short pass (about 0.1 s on a T4), and gives `checked.answerable`, from 0 to 1. Below `min_answerable` (0.1 for Qwen3-4B), the knowledge clearly doesn't answer the question, and the fallback comes back right away, without an answer. Below 0.3, the model answers, and the fallback replaces the answer if the knowledge doesn't state it (see `supported` above); the answer is kept in `checked.draft`. With an answer check, the fallback is also returned when the check isn't confident and the model can't think again.
+
+The check is built in for Qwen3-4B. It was trained on about 11,000 questions labeled by whether the knowledge answers them (SQuAD 2.0, DROP, HotpotQA and MuSiQue, with and without the paragraphs that answer them) and on 183 hand-written customer service questions. Other models are asked instead, which works less well and needs its threshold checked: on new customer service questions, Phi-4-mini declined half of the answerable ones at the default threshold. Raise `min_answerable` to decline more.
+
+How often Qwen3-4B declines, with the check and without it (the model asked instead), on questions the check wasn't trained on:
+
+| Questions | answerable ones declined | unanswerable ones declined | made-up answers without the fallback → with it |
+| --- | ---: | ---: | ---: |
+| Customer service, three new businesses (4-bit) | 3% (19% without the check) | 88% (93%) | 48% → 10% |
+| SQuAD 2.0, written to look answerable from their paragraph | 2% (1%) | 35% (25%) | 94% → 64% |
+| HotpotQA, without the paragraphs that answer them | 0% (1%) | 71% (67%) | 69% → 29% |
+| HotpotQA, over another question's paragraphs | 0% | 100% | 43% → 0% |
+| MuSiQue, with and without what answers them | 6% (21%) | 41% (51%) | 81% → 53% |
+| FaithEval, the sentence with the answer removed | | 55% (41%) | 85% → 44% |
+| PrivacyQA, real questions about privacy policies | 24% (17%) | 88% (85%) | 42% → 12% |
+| TechQA, real IBM support questions over technotes | 7% (14%) | 25% (43%) | 93% → 74% |
+
+<sub>150 questions per kind, except the businesses (58 each), PrivacyQA (99 and 33) and TechQA (154 and 150); SQuAD 2.0 questions come with their paragraph and 9 others, TechQA questions with 5 technotes. An answer counts as made up when it doesn't say the knowledge lacks it. Qwen3-4B in float16 on a Kaggle T4, except where noted. Reproduce with <code>python examples/evaluate_fallback.py results.jsonl</code>.</sub>
+
+It rarely declines a question the knowledge answers, and it catches most questions about things the knowledge doesn't cover, like opening hours or a product a store doesn't sell. It catches fewer when the knowledge covers the subject but not the detail asked for, and fewest over long technical documents (TechQA), where the model itself can barely tell. Keep a person in the loop where a wrong answer is costly.
+
 ### Updating the knowledge
 
 When the knowledge changes, update the cache instead of rebuilding it:
@@ -315,6 +366,8 @@ cag = NaiveCAG(
 
 - One question at a time per cache, whether from `generate_response` or from conversations.
 - Supports models with standard attention caches (e.g. Llama, Qwen3). Hybrid linear-attention models are not supported.
+- Small models are much weaker in some languages than in English: with Qwen3-4B, a quarter to a third of the answers to Egyptian Arabic customer questions were wrong. Use a larger model for those, such as Qwen3-8B.
+- The fallback's check is built in for Qwen3-4B only, and it catches few unanswerable questions over long technical documents.
 
 ## Roadmap
 
@@ -322,6 +375,7 @@ cag = NaiveCAG(
 - Answering several questions at once from one cache.
 - Built-in citation heads for more models.
 - Answer checks for more models, and a way to train one for any model.
+- Answerable checks for more models (Qwen3-8B first), and for long documents.
 
 Have an idea or a use case? [Open an issue](https://github.com/Ahmed-Ousama/mantiq/issues).
 

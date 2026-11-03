@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- `generate_checked_response(..., fallback=...)` hands questions the knowledge doesn't answer to a person: when the knowledge clearly doesn't answer the question, the fallback comes back right away with `declined=True`; when that isn't clear, the model answers, and the fallback replaces an answer the knowledge doesn't state. `CheckedAnswer` gains `answerable`, `declined` and `draft`.
+- An answerable check for Qwen3-4B: a linear check on the model's internal state that says how likely the knowledge answers a question, in one short pass. Other models are asked instead; `answerable_check` sets one for any model.
+- A business benchmark in `examples/business_bench`: six English businesses and 240 customer questions, plus three in Egyptian Arabic. With Qwen3-4B, mantiq with checks and a fallback gives 7 wrong or made-up answers per 100 questions, against 25 for a RAG pipeline on the same model. Reproduce with `examples/business_benchmark.py`.
+- `examples/evaluate_fallback.py` measures the fallback on customer service questions, SQuAD 2.0, HotpotQA, MuSiQue, FaithEval, PrivacyQA and TechQA.
+- The Colab notebook compares mantiq with RAG on the same model, shows the fallback, and times the first word and the full answer separately.
+
 ## 0.2.0
 
 ### Added
